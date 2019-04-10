@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 
 
 class Bottleneck(nn.Module):
@@ -42,11 +42,11 @@ class Generator(nn.Module):
         # Downsampling
         self.layers.append(nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=2))
         self.layers.append(nn.InstanceNorm2d(num_features=128))
-        self.layers.append(nn.ReLU)
+        self.layers.append(nn.ReLU())
 
         self.layers.append(nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2))
         self.layers.append(nn.InstanceNorm2d(num_features=256))
-        self.layers.append(nn.ReLU)
+        self.layers.append(nn.ReLU())
 
         # Bottleneck
         self._make_layer(block, 256, num_blocks, stride=2)
@@ -54,11 +54,11 @@ class Generator(nn.Module):
         # Upsampling
         self.layers.append(nn.ConvTranspose2d(in_channels= 256, out_channels=128, kernel_size=3, stride=2))
         self.layers.append(nn.InstanceNorm2d(num_features=128))
-        self.layers.append(nn.ReLU)
+        self.layers.append(nn.ReLU())
 
         self.layers.append(nn.ConvTranspose2d(in_channels= 128, out_channels=64, kernel_size=3 , stride=2))
         self.layers.append(nn.InstanceNorm2d(num_features=64))
-        self.layers.append(nn.ReLU)
+        self.layers.append(nn.ReLU())
 
         self.model = nn.Sequential(*self.layers)
 
@@ -79,9 +79,29 @@ class Discriminator(nn.Module):
     def __init__(self, params):
         super(Discriminator, self).__init__()
 
+        self.classname = self.__class__.__name__
+        self.layers = []
 
-    def forward(self, *input):
-        return super().forward(*input)
+        self.layers.append(nn.Conv2d(in_channels=3, out_channels=64, kernel_size=4, stride=2, padding=1))
+        self.layers.append(nn.LeakyReLU(negative_slope=0.2))
+
+        self.layers.append(nn.Conv2d(in_channels=64, out_channels=128, kernel_size=4, stride=2, padding=1))
+        self.layers.append(nn.LeakyReLU(negative_slope=0.2))
+
+        self.layers.append(nn.Conv2d(in_channels=128, out_channels=256, kernel_size=4, stride=2, padding=1))
+        self.layers.append(nn.LeakyReLU(negative_slope=0.2))
+
+        self.layers.append(nn.Conv2d(in_channels=256, out_channels=512, kernel_size=4, stride=2, padding=1))
+        self.layers.append(nn.LeakyReLU(negative_slope=0.2))
+
+        self.layers.append(nn.Conv2d(in_channels=512, out_channels=1, kernel_size=4, stride=2, padding=1))
+        self.layers.append(nn.Sigmoid())
+
+        self.model = nn.Sequential(*self.layers)
+
+
+    def forward(self, x):
+        return self.model(x)
 
 
 # Xavier weight initialization
