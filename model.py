@@ -40,7 +40,7 @@ class Generator(nn.Module):
         self.in_planes = 64
 
         # Downsampling
-        self.layers.append(nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=2))
+        self.layers.append(nn.Conv2d(in_channels=3, out_channels=128, kernel_size=3, stride=2))
         self.layers.append(nn.InstanceNorm2d(num_features=128))
         self.layers.append(nn.ReLU())
 
@@ -76,32 +76,41 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, params):
+    def __init__(self, channels, slope):
         super(Discriminator, self).__init__()
 
         self.classname = self.__class__.__name__
         self.layers = []
 
-        self.layers.append(nn.Conv2d(in_channels=3, out_channels=64, kernel_size=4, stride=2, padding=1))
-        self.layers.append(nn.LeakyReLU(negative_slope=0.2))
+        # Add layers
+        for idx in enumerate(channels):
+            # Iterate up to second-to-last element
+            if idx+1 == len(channels):
+                break
+            self.layers.append(nn.Conv2d(in_channels=channels[idx], out_channels=channels[idx+1], kernel_size=4, stride=2, padding=1))
+            self.layers.append(nn.LeakyReLU(negative_slope=slope))
 
-        self.layers.append(nn.Conv2d(in_channels=64, out_channels=128, kernel_size=4, stride=2, padding=1))
-        self.layers.append(nn.LeakyReLU(negative_slope=0.2))
-
-        self.layers.append(nn.Conv2d(in_channels=128, out_channels=256, kernel_size=4, stride=2, padding=1))
-        self.layers.append(nn.LeakyReLU(negative_slope=0.2))
-
-        self.layers.append(nn.Conv2d(in_channels=256, out_channels=512, kernel_size=4, stride=2, padding=1))
-        self.layers.append(nn.LeakyReLU(negative_slope=0.2))
-
-        self.layers.append(nn.Conv2d(in_channels=512, out_channels=1, kernel_size=4, stride=2, padding=1))
         self.layers.append(nn.Sigmoid())
-
         self.model = nn.Sequential(*self.layers)
 
 
     def forward(self, x):
         return self.model(x)
+
+
+# Initialize the Generator
+def Tiny_Generator():
+    x = Generator(Bottleneck)
+    return x
+
+
+channels = [3, 64, 128, 256, 512, 1]
+
+
+# Initialize the Discriminator
+def Tiny_Discriminator(channels=channels, slope=0.2):
+    x = Discriminator(channels, slope)
+    return x
 
 
 # Xavier weight initialization
