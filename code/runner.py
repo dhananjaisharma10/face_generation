@@ -1,6 +1,8 @@
 import os
+import time
 import torch
-import configs
+import config
+import torch.optim as optim
 from dataset import get_loader
 import torch.nn.functional as F
 from torchvision.utils import save_image
@@ -10,22 +12,24 @@ class Runner(object):
     def __init__(self):
         super(Runner, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.D = Discriminator(configs.d_channels, configs.d_slope)
-        self.G = Generator(configs.g_num_blocks)
+        self.D = Discriminator(image_size=config.image_size, slope=config.d_slope,
+                                conv_dim=config.d_conv_dim, c_dim=config.c_dim, repeat_num=config.d_repeat_num)
+        self.G = Generator(image_size=config.image_size, conv_dim=config.g_conv_dim,
+                            c_dim=config.c_dim, num_blocks=config.g_num_blocks, repeat_num=config.g_repeat_num)
         self.D, self.G = self.D.to(self.device), self.G.to(self.device)
-        self.train_loader = get_loader(configs.image_dir, configs.attr_path,
-                                        crop_size=configs.crop_size, image_size=configs.image_size,
-                                        batch_size=configs.train_batch_size, mode='train',
-                                        num_workers=configs.num_workers)
-        self.test_loader = get_loader(configs.image_dir, configs.attr_path,
-                                        crop_size=configs.crop_size, image_size=configs.image_size,
-                                        batch_size=configs.test_batch_size, mode='test',
-                                        num_workers=configs.num_workers)
-        self.g_optimizer = optim.Adam(self.G.parameters(), lr=configs.g_lr, weight_decay=configs.g_wd)
-        self.d_optimizer = optim.Adam(self.D.parameters(), lr=configs.d_lr, weight_decay=configs.d_wd)
-        self.lambda_cls = configs.lambda_cls
-        self.lambda_gp = configs.lambda_gp
-        self.n_critic = configs.n_critic
+        self.train_loader = get_loader(config.image_dir, config.attr_path,
+                                        crop_size=config.crop_size, image_size=config.image_size,
+                                        batch_size=config.train_batch_size, mode='train',
+                                        num_workers=config.num_workers)
+        self.test_loader = get_loader(config.image_dir, config.attr_path,
+                                        crop_size=config.crop_size, image_size=config.image_size,
+                                        batch_size=config.test_batch_size, mode='test',
+                                        num_workers=config.num_workers)
+        self.g_optimizer = optim.Adam(self.G.parameters(), lr=config.g_lr, weight_decay=config.g_wd)
+        self.d_optimizer = optim.Adam(self.D.parameters(), lr=config.d_lr, weight_decay=config.d_wd)
+        self.lambda_cls = config.lambda_cls
+        self.lambda_gp = config.lambda_gp
+        self.n_critic = config.n_critic
         self.result_dir = config.result_dir
 
     def classification_loss(self, preds, targets):
@@ -102,9 +106,9 @@ class Runner(object):
             for batch_idx, (imgs, targets) in enumerate(self.test_loader):
                 imgs, targets = imgs.to(self.device), targets.to(self.device)
                 imgs_fake = self.G(targets)
-                imgs_concat = torch.cat([imgs, imgs_fake], dim=4)
+                imgs_concat = torch.cat([imgs, imgs_fake], dim=0)
                 result_path = os.path.join(self.result_dir, '{}-images.jpg'.format(batch_idx+1))
                 save_image(self.denorm(imgs_concat.data.cpu()), result_path, nrow=1, padding=0)
-                print('Test Iteration: %d/%d, Saved: %s' % (batch_idx+1, len(test_loader), result_path), end="\r", flush=True)
+                print('Test Iteration: %d/%d, Saved: %s' % (batch_idx+1, len(self.test_loader), result_path), end="\r", flush=True)
             end_time = time.time()
             print('\nTest Completed. Time: %d s' % (end_time - start_time))

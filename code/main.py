@@ -1,5 +1,8 @@
-import configs
+import os
+import torch
+import config
 import argparse
+import numpy as np
 from runner import Runner
 
 def parse_args():
@@ -15,17 +18,17 @@ def create_dir():
         os.makedirs(config.result_dir)
 
 def setup_random_seed():
-    np.random.seed(configs.random_seed)
-    torch.manual_seed(configs.random_seed)
+    np.random.seed(config.random_seed)
+    torch.manual_seed(config.random_seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed(configs.random_seed)
+        torch.cuda.manual_seed(config.random_seed)
 
 if __name__ == "__main__":
     args = parse_args()     # Parse args.
     create_dir()            # Create relevant directories.
     setup_random_seed()     # Set random seed for shuffle.
     runner = Runner()
-    n_epochs = configs.n_epochs
+    n_epochs = config.n_epochs
     if args.mode == 'train':
         for epoch in range(n_epochs):
             print('Epoch: %d/%d' % (epoch+1,n_epochs))

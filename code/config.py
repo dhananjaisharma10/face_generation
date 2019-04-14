@@ -1,11 +1,9 @@
-
-
 # Model configuration
 # c_dim: dimension of domain labels (1st dataset)
-c_dim = 5
+c_dim = 40
 
-# celeba_crop_size: crop size for the CelebA dataset
-celeba_crop_size = 178
+# crop_size: crop size for the CelebA dataset
+crop_size = 178
 
 # image_size: image resolution
 image_size = 128
@@ -36,26 +34,29 @@ lambda_gp = 10
 
 
 # Training configuration
-# dataset: CelebA
-dataset = 'CelebA'
-
 # train_batch_size: mini-batch size for training
 train_batch_size = 16
 
 # test_batch_size: mini-batch size for testing
-test_batch_size = 16
+test_batch_size = 1
 
-# num_iters: number of total iterations for training D
-num_iters = 200000
+# num_workers
+num_workers = 1
 
-# num_iters_decay: number of iterations for decaying lr
-num_iters_decay = 100000
+# n_epochs: number of training epochs
+n_epochs = 20
 
 # g_lr: learning rate for G
 g_lr = 0.0001
 
 # d_lr: learning rate for D
 d_lr = 0.0001
+
+# g_wd: weight decay for G
+g_wd = 0
+
+# g_wd: weight decay for D
+d_wd = 0
 
 # d_channels: list of in/out channels for conv layers in D
 d_channels = [3, 64, 128, 256, 512]
@@ -72,36 +73,29 @@ beta1 = 0.5
 # beta2: beta2 for Adam optimizer
 beta2 = 0.999
 
-# resume_iters: resume training from this step
-resume_iters = None
-
 # selected_attrs: selected attributes for the CelebA dataset
 selected_attrs = ['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Male', 'Young']
 
 
 # Miscellaneous
-# num_workers
-num_workers = 1
-
-# mode: train/test
-mode = 'train'
-
 # use_tensorboard
 use_tensorboard = True
 
+# random_seed: to give consistent results
+random_seed = 1111
 
 # Directories
-celeba_image_dir = 'data/celeba/images'
+image_dir = './../data/images'
 
-attr_path = 'data/celeba/list_attr_celeba.txt'
+attr_path = './../data/list_attr_celeba.txt'
 
-log_dir = '../logs'
+log_dir = './../logs'
 
-model_save_dir = '../models'
+model_save_dir = './../models'
 
-sample_dir = '../samples'
+sample_dir = './../samples'
 
-result_dir = '../results'
+result_dir = './../results'
 
 
 # Step size
@@ -112,5 +106,3 @@ sample_step = 1000
 model_save_step = 10000
 
 lr_update_step = 1000
-
-n_epochs = 100

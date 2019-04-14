@@ -34,7 +34,7 @@ class CelebA(data.Dataset):
             self.attr2idx[attr_name] = i
             self.idx2attr[i] = attr_name
         lines = lines[2:]
-        random.shuffle(lines)
+        #random.shuffle(lines)
         for i, line in enumerate(lines):
             split = line.split()
             filename = split[0]
@@ -52,7 +52,7 @@ class CelebA(data.Dataset):
                 image = self.transform(image)
                 self.image_shape = image.shape
         self.label_shape = np.array(self.train_dataset[0][1]).shape
-        print('Finished preprocessing the CelebA dataset...')
+        print('Finished preprocessing the CelebA dataset for mode =', self.mode)
 
     def __getitem__(self, index):
         """Return one image and its corresponding attribute label."""
