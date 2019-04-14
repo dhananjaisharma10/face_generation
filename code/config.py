@@ -1,38 +1,3 @@
-from data import get_loader
-
-def main(config):
-    # For fast training.
-    cudnn.benchmark = True
-
-    # Create directories if not exist.
-    if not os.path.exists(config.log_dir):
-        os.makedirs(config.log_dir)
-    if not os.path.exists(config.model_save_dir):
-        os.makedirs(config.model_save_dir)
-    if not os.path.exists(config.sample_dir):
-        os.makedirs(config.sample_dir)
-    if not os.path.exists(config.result_dir):
-        os.makedirs(config.result_dir)
-
-    # Data loader.
-    celeba_loader = None
-
-    if config.dataset in ['CelebA', 'Both']:
-        celeba_loader = get_loader(config.celeba_image_dir, config.attr_path, config.selected_attrs,
-                                   config.celeba_crop_size, config.image_size, config.batch_size,
-                                   'CelebA', config.mode, config.num_workers)
-    
-
-    # Solver for training and testing StarGAN.
-    solver = Solver(celeba_loader, config)
-
-    if config.mode == 'train':
-        if config.dataset in ['CelebA']:
-            solver.train()
-    elif config.mode == 'test':
-        if config.dataset in ['CelebA']:
-            solver.test()
-
 
 # Model configuration.
 'c_dim: dimension of domain labels (1st dataset)'
