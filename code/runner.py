@@ -14,11 +14,13 @@ class Runner(object):
         self.G = Generator(configs.g_num_blocks)
         self.D, self.G = self.D.to(self.device), self.G.to(self.device)
         self.train_loader = get_loader(configs.image_dir, configs.attr_path,
+                                        crop_size=configs.crop_size, image_size=configs.image_size,
                                         batch_size=configs.train_batch_size, mode='train',
                                         num_workers=configs.num_workers)
         self.test_loader = get_loader(configs.image_dir, configs.attr_path,
-                                batch_size=configs.test_batch_size, mode='test',
-                                num_workers=configs.num_workers)
+                                        crop_size=configs.crop_size, image_size=configs.image_size,
+                                        batch_size=configs.test_batch_size, mode='test',
+                                        num_workers=configs.num_workers)
         self.g_optimizer = optim.Adam(self.G.parameters(), lr=configs.g_lr, weight_decay=configs.g_wd)
         self.d_optimizer = optim.Adam(self.D.parameters(), lr=configs.d_lr, weight_decay=configs.d_wd)
         self.lambda_cls = configs.lambda_cls

@@ -14,10 +14,16 @@ def create_dir():
     if not os.path.exists(config.result_dir):
         os.makedirs(config.result_dir)
 
+def setup_random_seed():
+    np.random.seed(configs.random_seed)
+    torch.manual_seed(configs.random_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(configs.random_seed)
+
 if __name__ == "__main__":
-    # Parse args.
-    args = parse_args()
-    create_dir()
+    args = parse_args()     # Parse args.
+    create_dir()            # Create relevant directories.
+    setup_random_seed()     # Set random seed for shuffle.
     runner = Runner()
     n_epochs = configs.n_epochs
     if args.mode == 'train':
