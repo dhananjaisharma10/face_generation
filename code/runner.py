@@ -8,9 +8,10 @@ from model import Discriminator, Generator
 
 class Runner(object):
     def __init__(self):
+        super(Runner, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.D = Discriminator(configs.d_channels, configs.d_slope)
-        self.G = Generator(configs.g_block)
+        self.G = Generator(configs.g_num_blocks)
         self.D, self.G = self.D.to(self.device), self.G.to(self.device)
         self.train_loader = get_loader(configs.image_dir, configs.attr_path,
                                         batch_size=configs.train_batch_size, mode='train',
