@@ -19,6 +19,9 @@ d_conv_dim = 64
 # g_num_blocks: number of residual blocks in G
 g_num_blocks = 6
 
+# g_repeat_num: number of conv layers for up/down-sampling in G
+g_repeat_num = 2
+
 # d_repeat_num: number of strided conv layers in D
 d_repeat_num = 6
 
@@ -55,7 +58,7 @@ g_lr = 0.0001
 d_lr = 0.0001
 
 # d_channels: list of in/out channels for conv layers in D
-d_channels = [3, 64, 128, 256, 512, 1]
+d_channels = [3, 64, 128, 256, 512]
 
 # d_slope: slope of leaky relu
 d_slope = 0.2
