@@ -4,6 +4,7 @@ import config
 import argparse
 import numpy as np
 from runner import Runner
+import time
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Training/testing for Face Generation.')
@@ -12,8 +13,10 @@ def parse_args():
 
 def create_dir():
     # Create directories if not exist.
-    if not os.path.exists(config.model_save_dir):
-        os.makedirs(config.model_save_dir)
+    if not os.path.exists(config.model_save_G_dir):
+        os.makedirs(config.model_save_G_dir)
+    if not os.path.exists(config.model_save_D_dir):
+        os.makedirs(config.model_save_D_dir)
     if not os.path.exists(config.result_dir):
         os.makedirs(config.result_dir)
 
@@ -35,11 +38,13 @@ if __name__ == "__main__":
             d_loss, g_loss = runner.train_model()
             # Checkpoint the model after each epoch.
             d_loss, g_loss= '%.3f'%(d_loss), '%.3f'%(g_loss)
-            model_path = os.path.join(configs.model_save_dir, \
-                        'model_{}_d_{}_g_{}.pt'.format(time.strftime("%Y%m%d-%H%M%S"), d_loss, g_loss))
-            torch.save(model.state_dict(), model_path)
+            model_path_G = os.path.join(config.model_save_G_dir, \
+                        'G_model_{}_d_{}_g_{}.pt'.format(time.strftime("%Y%m%d-%H%M%S"), d_loss, g_loss))
+            model_path_D = os.path.join(config.model_save_D_dir, \
+                        'D_model_{}_d_{}_g_{}.pt'.format(time.strftime("%Y%m%d-%H%M%S"), d_loss, g_loss))
+            torch.save(runner.G.state_dict(), model_path_G)
+            torch.save(runner.D.state_dict(), model_path_D)
             print('='*20)
-            scheduler.step(val_loss)
-    else:
+
         runner.test_model()
         print('='*20)

@@ -1,3 +1,5 @@
 data/*
 models/*
 results/*
+*.swp
+code/__pycache__/*

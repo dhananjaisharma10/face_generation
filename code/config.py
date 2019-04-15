@@ -91,7 +91,9 @@ attr_path = './../data/list_attr_celeba.txt'
 
 log_dir = './../logs'
 
-model_save_dir = './../models'
+model_save_G_dir = './../models/Generator'
+model_save_D_dir = './../models/Discriminator'
+
 
 sample_dir = './../samples'
 
