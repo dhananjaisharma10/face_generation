@@ -48,131 +48,63 @@ class Bottleneck(nn.Module):
         out = F.relu(out)
         return out
 
+# Generator Code
+
 class Generator(nn.Module):
-    def __init__(self, image_size=128, conv_dim=64, c_dim=40, num_blocks=6, repeat_num=2):
+    def __init__(self, ngpu, nz=40, ngf=64, nc=3):
         super(Generator, self).__init__()
-        self.classname = self.__class__.__name__
-        self.layers = []
-        self.block = Bottleneck
-        self.image_size = image_size
+        self.ngpu = ngpu
+        self.main = nn.Sequential(
+            # input is Z, going into a convolution
+            nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(ngf * 8),
+            nn.ReLU(True),
+            # state size. (ngf*8) x 4 x 4
+            nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ngf * 4),
+            nn.ReLU(True),
+            # state size. (ngf*4) x 8 x 8
+            nn.ConvTranspose2d( ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ngf * 2),
+            nn.ReLU(True),
+            # state size. (ngf*2) x 16 x 16
+            nn.ConvTranspose2d( ngf * 2, ngf, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ngf),
+            nn.ReLU(True),
+            # state size. (ngf) x 32 x 32
+            nn.ConvTranspose2d( ngf, nc, 4, 2, 1, bias=False),
+            nn.Tanh()
+            # state size. (nc) x 64 x 64
+        )
 
-        # Input dim = c_dim, Output dim = 64
-        #self.layers.append(Print())
-        self.layers.append(nn.Conv2d(in_channels=c_dim, out_channels=conv_dim,
-                                    kernel_size=7, stride=1, padding=3, bias=False))
-        #self.layers.append(Print())
-        self.layers.append(nn.InstanceNorm2d(conv_dim, affine=True, track_running_stats=True))
-        self.layers.append(nn.ReLU())
-
-        curr_dim = conv_dim
-        # Downsampling
-        for i in range(repeat_num):
-            self.layers.append(nn.Conv2d(in_channels=curr_dim, out_channels=curr_dim * 2,
-                                        kernel_size=4, stride=2, padding=1, bias=False))
-            #self.layers.append(Print())
-            self.layers.append(nn.InstanceNorm2d(num_features=curr_dim * 2, affine=True, track_running_stats=True))
-            self.layers.append(nn.ReLU(inplace=True))
-            curr_dim *= 2
-
-        # Bottleneck
-        #curr_dim = self._make_layer(self.block, curr_dim, curr_dim, num_blocks, stride=2)
-        # Bottleneck layers.
-        for i in range(num_blocks):
-            self.layers.append(ResidualBlock(dim_in=curr_dim, dim_out=curr_dim))
-
-        # Upsampling
-        for i in range(repeat_num):
-            self.layers.append(nn.ConvTranspose2d(in_channels=curr_dim, out_channels=curr_dim // 2,
-                                                kernel_size=4, stride=2, padding=1, bias=False))
-            #self.layers.append(Print())
-            self.layers.append(nn.InstanceNorm2d(num_features=curr_dim // 2, affine=True, track_running_stats=True))
-            self.layers.append(nn.ReLU(inplace=True))
-            curr_dim = curr_dim // 2
-
-        # Input dim = 64, Output dim = 3
-        self.layers.append(nn.Conv2d(in_channels=curr_dim, out_channels=3,
-                                    kernel_size=7, stride=1, padding=3, bias=False))
-        #self.layers.append(Print())
-        self.layers.append(nn.Tanh())
-
-        self.model = nn.Sequential(*self.layers)
-        self.init_weights()
-
-    def _make_layer(self, block, in_planes, planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
-        for stride in strides:
-            self.layers.append(block(in_planes, planes, stride))
-            #self.layers.append(Print())
-            in_planes = planes * block.expansion
-        return in_planes
-
-    def forward(self, c):
-        # Replicate spatially and concatenate domain information.
-        c = c.view(c.size(0), c.size(1), 1, 1)
-        c = c.repeat(1, 1, self.image_size, self.image_size)
-        # x = torch.cat([x, c], dim=1)
-        return self.model(c)
-
-    def init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-                nn.init.xavier_normal_(m.weight.data)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.InstanceNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                m.bias.data.zero_()
-
+    def forward(self, input):
+        return self.main(input)
 
 class Discriminator(nn.Module):
-    def __init__(self, image_size=128, slope=0.2, conv_dim=64, c_dim=5, repeat_num=6):
+    def __init__(self, ngpu, nc=3, ndf=64):
         super(Discriminator, self).__init__()
-        layers = []
-        layers.append(nn.Conv2d(in_channels=3, out_channels=conv_dim, kernel_size=4, stride=2, padding=1))
-        layers.append(nn.LeakyReLU(negative_slope=slope))
+        self.ngpu = ngpu
+        self.main = nn.Sequential(
+            # input is (nc) x 64 x 64
+            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf) x 32 x 32
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*2) x 16 x 16
+            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 4),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*4) x 8 x 8
+            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*8) x 4 x 4
+            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+            nn.Sigmoid()
+        )
 
-        curr_dim = conv_dim
-        for i in range(1, repeat_num):
-            layers.append(nn.Conv2d(in_channels=curr_dim, out_channels=curr_dim*2, kernel_size=4, stride=2, padding=1))
-            layers.append(nn.LeakyReLU(negative_slope=slope))
-            curr_dim = curr_dim * 2
+    def forward(self, input):
+        return self.main(input)
 
-        layers.append(nn.Conv2d(in_channels=curr_dim, out_channels=1, kernel_size=3, stride=1, padding=1, bias=False))
-        layers.append(nn.Sigmoid()) # Optional. Used in some papers for PatchGAN discriminator
-
-        self.model = nn.Sequential(*layers)
-        self.init_weights()
-
-        # For Domain classification loss
-        # kernel_size = int(image_size / np.power(2, repeat_num))
-        # self.conv2 = nn.Conv2d(in_channels=curr_dim, out_channels=c_dim, kernel_size=kernel_size, bias=False)
-
-    def forward(self, x):
-        return self.model(x)
-
-    def init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.xavier_normal_(m.weight.data)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.InstanceNorm2d):
-                nn.init.xavier_normal_(m.weight.data)
-            elif isinstance(m, nn.Linear):
-                m.bias.data.zero_()
-
-
-# Initialize the Generator
-# def Tiny_Generator():
-#     x = Generator(Bottleneck)
-#     return x
-
-
-# Initialize the Discriminator
-# def Tiny_Discriminator(channels=channels, slope=0.2):
-#     x = Discriminator(channels, slope)
-#     return x

@@ -32,19 +32,20 @@ if __name__ == "__main__":
     setup_random_seed()     # Set random seed for shuffle.
     runner = Runner()
     n_epochs = config.n_epochs
+    img_list = []
     if args.mode == 'train':
         for epoch in range(n_epochs):
             print('Epoch: %d/%d' % (epoch+1,n_epochs))
-            d_loss, g_loss = runner.train_model()
+            d_loss, g_loss, sub_img_list = runner.train_model()
             # Checkpoint the model after each epoch.
             d_loss, g_loss= '%.3f'%(d_loss), '%.3f'%(g_loss)
             model_path_G = os.path.join(config.model_save_G_dir, \
                         'G_model_{}_d_{}_g_{}.pt'.format(time.strftime("%Y%m%d-%H%M%S"), d_loss, g_loss))
             model_path_D = os.path.join(config.model_save_D_dir, \
                         'D_model_{}_d_{}_g_{}.pt'.format(time.strftime("%Y%m%d-%H%M%S"), d_loss, g_loss))
-            torch.save(runner.G.state_dict(), model_path_G)
-            torch.save(runner.D.state_dict(), model_path_D)
+            # torch.save(runner.G.state_dict(), model_path_G)
+            # torch.save(runner.D.state_dict(), model_path_D)
             print('='*20)
 
-        runner.test_model()
-        print('='*20)
+        # runner.test_model()
+        # print('='*20)

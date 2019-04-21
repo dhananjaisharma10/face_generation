@@ -1,4 +1,7 @@
 # Model configuration
+# ngpu: nuber of GPUs
+ngpu=1
+
 # c_dim: dimension of domain labels (1st dataset)
 c_dim = 40
 
@@ -6,7 +9,7 @@ c_dim = 40
 crop_size = 178
 
 # image_size: image resolution
-image_size = 128
+image_size = 64
 
 # g_conv_dim: number of conv filters in the first layer of G
 g_conv_dim = 64
@@ -20,8 +23,14 @@ g_num_blocks = 6
 # g_repeat_num: number of conv layers for up/down-sampling in G
 g_repeat_num = 2
 
+# g_out_channels: number of channels in the output image from G
+g_out_channels = 3
+
 # d_repeat_num: number of strided conv layers in D
 d_repeat_num = 6
+
+# d_in_channels: number of channels in the input image
+d_in_channels = 3
 
 # lambda_cls: weight for domain classification loss
 lambda_cls = 1
@@ -32,13 +41,16 @@ lambda_rec = 10
 # lambda_gp: weight for gradient penalty
 lambda_gp = 10
 
+# Establish convention for real and fake labels during training
+real_label = 1
+fake_label = 0
 
 # Training configuration
 # train_batch_size: mini-batch size for training
-train_batch_size = 16
+train_batch_size = 128
 
 # test_batch_size: mini-batch size for testing
-test_batch_size = 1
+test_batch_size = 128
 
 # num_workers
 num_workers = 1
@@ -85,9 +97,9 @@ use_tensorboard = True
 random_seed = 1111
 
 # Directories
-image_dir = './../data/images'
+image_dir = '/home/dhananjai/Documents/data/Img/img_align_celeba/'
 
-attr_path = './../data/list_attr_celeba.txt'
+attr_path = '/home/dhananjai/Documents/data/Anno/list_attr_celeba.txt'
 
 log_dir = './../logs'
 
