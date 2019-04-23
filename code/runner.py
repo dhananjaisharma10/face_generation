@@ -6,8 +6,10 @@ import torch.optim as optim
 from dataset import get_loader
 import torch.nn.functional as F
 import torch.nn as nn
+import torchvision.utils as vutils
 from torchvision.utils import save_image
 from model import Discriminator, Generator
+
 
 # custom weights initialization called on netG and netD
 def weights_init(m):
@@ -37,6 +39,7 @@ class Runner(object):
                                         crop_size=config.crop_size, image_size=config.image_size,
                                         batch_size=config.test_batch_size, mode='test',
                                         num_workers=config.num_workers)
+
         self.g_optimizer = optim.Adam(self.G.parameters(), lr=config.g_lr, weight_decay=config.g_wd)
         self.d_optimizer = optim.Adam(self.D.parameters(), lr=config.d_lr, weight_decay=config.d_wd)
         self.lambda_cls = config.lambda_cls
@@ -45,13 +48,14 @@ class Runner(object):
         self.result_dir = config.result_dir
         self.nz = config.c_dim
         self.criterion = nn.BCELoss()
+        # A batch of test images
         self.fixed_feats = None
         for _, (_, feats) in enumerate(self.test_loader, 0):
             self.fixed_feats = feats.view(feats.size(0), feats.size(1), 1, 1).to(self.device)
             break
 
     def classification_loss(self, preds, targets):
-        return F.binary_cross_entropy_with_logits(preds, targets)
+        return F.binary_cross_entropy_with_logits(preds, targets, reduction='mean') / targets.size(0)
 
     def reset_grad(self):
         self.g_optimizer.zero_grad()
@@ -67,9 +71,6 @@ class Runner(object):
         self.G.train()
         # Training Loop
         # Lists to keep track of progress
-        img_list = []
-        # G_losses = []
-        # D_losses = []
 
         # For each epoch
         d_running_loss = 0
@@ -79,51 +80,53 @@ class Runner(object):
         d_running_p_gz2 = 0
         
         g_running_loss = 0
-        iters = 0
+        j = 0
         # For each batch in the dataloader
-        for _, (targets, feats) in enumerate(self.train_loader, 0):
+        for itr, (targets, feats) in enumerate(self.train_loader, 0):
 
             ############################
             # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
             ###########################
-            ## Train with all-real batch
-            self.D.zero_grad()
-            # Format batch
+
             feats, targets = feats.to(self.device), targets.to(self.device)
-            real_cpu = feats
-            b_size = real_cpu.size(0)
+            b_size = feats.size(0)
             feats = feats.view(b_size, self.nz, 1, 1)
-            label = torch.full((b_size,), config.real_label, device=self.device)
-    #         label = feats
+
+            self.D.zero_grad()
+
+            ## Train with all-real batch
+            label = torch.full((b_size,), config.real_label, device=self.device) # all 1's
+
             # Forward pass real batch through D
+            output_real, output_cls = self.D(targets)
 
-            output = self.D(targets)
-            output = output.view(-1)
-            # Calculate loss on all-real batch
+            # Calculate loss
+            errD_real = self.criterion(output_real, label)
+            errD_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
 
-            errD_real = self.criterion(output, label)
             # Calculate gradients for D in backward pass
-            errD_real.backward()
-            D_x = output.mean().item()
-            d_running_p_x += D_x
+            errD = errD_real + errD_cls
+            errD.backward()
+            D_real = output_real.mean().item()
+            D_cls = output_cls.mean().item()
+
+            d_running_p_x += D_real + D_cls
+
             ## Train with all-fake batch
-            # Generate batch of latent vectors
-    #         noise = torch.randn(b_size, nz, 1, 1, device=device)
-            # Generate fake image batch with G
-    #         fake = netG(noise)
             fake = self.G(feats)
-            label.fill_(config.fake_label)
+            label.fill_(config.fake_label) # all 0's
+
             # Classify all fake batch with D
-            output = self.D(fake.detach()).view(-1)
-            # Calculate D's loss on the all-fake batch
-            errD_fake = self.criterion(output, label)
-            # Calculate the gradients for this batch
+            output_real, output_cls = self.D(fake.detach())
+
+            # Calculate loss
+            errD_fake = self.criterion(output_real, label)
             errD_fake.backward()
-            D_G_z1 = output.mean().item()
+            D_G_z1 = output_real.mean().item()
             d_running_p_gz1 += D_G_z1
-            # Add the gradients from the all-real and all-fake batches
-            errD = errD_real + errD_fake
-            d_running_loss += errD.item()
+
+            d_running_loss += errD_real.item() + errD_cls.item() + errD_fake.item()
+
             # Update D
             self.d_optimizer.step()
 
@@ -131,46 +134,39 @@ class Runner(object):
             # (2) Update G network: maximize log(D(G(z)))
             ###########################
             self.G.zero_grad()
+
             label.fill_(config.real_label)  # fake labels are real for generator cost
-            # Since we just updated D, perform another forward pass of all-fake batch through D
-            output = self.D(fake).view(-1)
+            output_real, output_cls = self.D(fake)
+
             # Calculate G's loss based on this output
-            errG = self.criterion(output, label)
-            g_running_loss += errG.item()
-            # Calculate gradients for G
-            errG.backward()
-            D_G_z2 = output.mean().item()
-            d_running_p_gz2 += D_G_z2
+            errG_real = self.criterion(output_real, label)
+            errG_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
             
+            # Calculate gradients for G
+            errG = errG_real + errG_cls
+            errG.backward()
+
+            D_G_z2 = output_real.mean().item()
+            d_running_p_gz2 += D_G_z2
+
+            g_running_loss += errG_real.item() + errG_cls.item()
+            
+            j = len(self.train_loader)
+
             # Update G
             self.g_optimizer.step()
+            print("Iter: {}/{} D loss: {:.4f} G loss: {:.4f}".format(itr, len(self.train_loader), (d_running_loss / (itr+1)), (g_running_loss / (itr+1))), end="\r", flush=True)
             
-            # Output training stats
-            # if i % 50 == 0:
-            #     print('[%d/%d][%d/%d] Loss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-            #         % (epoch, num_epochs, i, len(self.train_loader),
-            #             errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
-            
-            
-            # Save Losses for plotting later
-            # G_losses.append(errG.item())
-            # D_losses.append(errD.item())
-            
-            # Check how the generator is doing by saving G's output on fixed_noise
+        print('Running Stats -> Loss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
+                    % d_running_loss / j, g_running_loss / j, d_running_p_x / j,
+                        d_running_p_gz1 / j, d_running_p_gz2 / j)
 
-            iters += 1
-
-            if (iters % 500 == 0):
-                with torch.no_grad():
-                    fake = self.G(self.fixed_feats).detach().cpu()
-                    img_list.append(torchvision.utils.make_grid(fake, padding=2, normalize=True))
+        # For plotting 
+        img_list = []
+        with torch.no_grad():
+            fake = self.G(self.fixed_feats).detach().cpu()
+            img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
         
-        j = len(self.train_loader)
-
-        print('Running -> Loss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                    % d_running_loss / j, g_running_loss/ j, d_running_p_x/ j,
-                        d_running_p_gz1/ j, d_running_p_gz2/ j)
-            
         d_running_loss /= j
         g_running_loss /= j
 

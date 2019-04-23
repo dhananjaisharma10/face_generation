@@ -50,7 +50,7 @@ fake_label = 0
 train_batch_size = 128
 
 # test_batch_size: mini-batch size for testing
-test_batch_size = 128
+test_batch_size = 64
 
 # num_workers
 num_workers = 1

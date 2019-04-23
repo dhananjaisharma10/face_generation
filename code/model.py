@@ -81,7 +81,7 @@ class Generator(nn.Module):
         return self.main(input)
 
 class Discriminator(nn.Module):
-    def __init__(self, ngpu, nc=3, ndf=64):
+    def __init__(self, ngpu, nz=40, nc=3, ndf=64):
         super(Discriminator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
@@ -99,12 +99,24 @@ class Discriminator(nn.Module):
             # state size. (ndf*4) x 8 x 8
             nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 8),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*8) x 4 x 4
-            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
-            nn.Sigmoid()
+            nn.LeakyReLU(0.2, inplace=True)
+            
         )
 
+        # state size. (ndf*8) x 4 x 4
+        # Used to classify whether real/fake
+        self.conv_rf = nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+        # Used for domain classification
+        self.conv_cls = nn.Conv2d(ndf * 8, nz, 4, 1, 0, bias=False)
+
     def forward(self, input):
-        return self.main(input)
+        out = self.main(input)
+
+        out_rf = self.conv_rf(out)
+        out_rf = self.sigmoid(out_rf)
+
+        out_cls = self.conv_cls(out)
+        return out_rf.view(-1), out_cls.view(out_cls.size(0), out_cls.size(1))
 
