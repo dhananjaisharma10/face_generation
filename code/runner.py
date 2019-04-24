@@ -55,7 +55,9 @@ class Runner(object):
             break
 
     def classification_loss(self, preds, targets):
-        return F.binary_cross_entropy_with_logits(preds, targets, reduction='mean') / targets.size(0)
+        #return F.binary_cross_entropy_with_logits(preds, targets, reduction='mean') / targets.size(0)
+        # FIXME: Why does STARGAN divide by targets.size(0) if reduction is already mean?
+        return F.binary_cross_entropy_with_logits(preds, targets, reduction='mean')
 
     def reset_grad(self):
         self.g_optimizer.zero_grad()
@@ -107,8 +109,9 @@ class Runner(object):
             # Calculate gradients for D in backward pass
             errD = errD_real + errD_cls
             errD.backward()
-            D_real = output_real.mean().item()
-            D_cls = output_cls.mean().item()
+            # FIXME: Check if this value is too huge? Would suggest that we are not actually taking mean.
+            D_real = output_real.item()
+            D_cls = output_cls.item()
 
             d_running_p_x += D_real + D_cls
 
@@ -122,7 +125,8 @@ class Runner(object):
             # Calculate loss
             errD_fake = self.criterion(output_real, label)
             errD_fake.backward()
-            D_G_z1 = output_real.mean().item()
+            # FIXME: Check if this value is too huge? Would suggest that we are not actually taking mean.
+            D_G_z1 = output_real.item()
             d_running_p_gz1 += D_G_z1
 
             d_running_loss += errD_real.item() + errD_cls.item() + errD_fake.item()
@@ -146,7 +150,8 @@ class Runner(object):
             errG = errG_real + errG_cls
             errG.backward()
 
-            D_G_z2 = output_real.mean().item()
+            # FIXME: Check if this value is too huge? Would suggest that we are not actually taking mean.
+            D_G_z2 = output_real.item()
             d_running_p_gz2 += D_G_z2
 
             g_running_loss += errG_real.item() + errG_cls.item()
