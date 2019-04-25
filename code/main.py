@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from runner import Runner
 import time
+from datetime import datetime
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Training/testing for Face Generation.')
@@ -27,7 +28,7 @@ def setup_random_seed():
     if torch.cuda.is_available():
         torch.cuda.manual_seed(config.random_seed)
 
-def plot_loss(G_losses, D_losses):
+def plot_loss(G_losses, D_losses, run_id):
     plt.figure(figsize=(10,5))
     plt.title("Generator and Discriminator Loss During Training")
     plt.plot(G_losses,label="G")
@@ -35,20 +36,27 @@ def plot_loss(G_losses, D_losses):
     plt.xlabel("iterations")
     plt.ylabel("Loss")
     plt.legend()
-    plt.savefig('losses.jpeg', dpi=400, bbox_inches='tight')
+    plt.savefig('experiments/{}/losses.jpeg'.format(run_id), dpi=400, bbox_inches='tight')
 
-def plot_images(epoch, img_list):
+def plot_images(epoch, img_list, run_id):
     # Grab a batch of real images from the dataloader
     ##
-
     # Plot the fake images from the last epoch
-    plt.figure(figsize=(10,5))
+    fig = plt.figure(figsize=(10,5))
     plt.axis("off")
-    plt.title("Fake Images")
-    plt.imshow(np.transpose(img_list[-1]))
-    plt.savefig('images_{}.jpeg'.format(epoch), dpi=400, bbox_inches='tight')
+    plt.title("Fake Image {}".format(len(img_list)))
+    plt.imshow(np.transpose(img_list[-1],(1,2,0))) # plot the latest epoch
+    plt.savefig('experiments/{}/images_{}.jpeg'.format(run_id, epoch), dpi=400, bbox_inches='tight')
+    plt.close(fig)
+
 
 if __name__ == "__main__":
+    dt = datetime.now()
+    run_id = dt.strftime('%b-%d_%H:%M')
+    if not os.path.exists('./experiments'):
+        os.mkdir('./experiments')
+    os.mkdir('./experiments/%s' % run_id)
+    # print("Saving models, predictions, and generated words to ./experiments/%s" % run_id)
     args = parse_args()     # Parse args.
     create_dir()            # Create relevant directories.
     setup_random_seed()     # Set random seed for shuffle.
@@ -60,14 +68,13 @@ if __name__ == "__main__":
     if args.mode == 'train':
         for epoch in range(n_epochs):
             print('Epoch: %d/%d' % (epoch+1,n_epochs))
-            d_loss, g_loss, sub_img_list = runner.train_model()
+            d_loss, g_loss, result = runner.train_model()
 
             G_losses.append(g_loss)
             D_losses.append(d_loss)
-            plot_loss(G_losses, D_losses) # loss image
-
-            plot_images(epoch+1, sub_img_list) # images
-
+            plot_loss(G_losses, D_losses, run_id) # loss image
+            img_list.append(result)
+            plot_images(epoch+1, img_list, run_id) # images
             # Checkpoint the model after each epoch.
             # d_loss, g_loss= '%.3f'%(d_loss), '%.3f'%(g_loss)
             # model_path_G = os.path.join(config.model_save_G_dir, \

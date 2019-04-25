@@ -119,10 +119,10 @@ class Runner(object):
             d_running_p_x += D_real# + D_cls
 
             ## Train with all-fake batch
-            # fake = self.G(feats)
+            fake = self.G(feats)
             # NOTE: DCGAN implementation
-            noise = torch.randn(b_size, self.nz, 1, 1, device=self.device)
-            fake = self.G(noise)
+            # noise = torch.randn(b_size, self.nz, 1, 1, device=self.device)
+            # fake = self.G(noise)
             label.fill_(config.fake_label) # all 0's
 
             # Classify all fake batch with D
@@ -177,19 +177,17 @@ class Runner(object):
             del errD_fake
             del errG
             print("Iter: {}/{} D loss: {:.4f} G loss: {:.4f}".format(itr, len(self.train_loader), (d_running_loss / (itr+1)), (g_running_loss / (itr+1))), end="\r", flush=True)
-            
         print('Running Stats -> Loss_D: {:.2f}\tLoss_G: {:.2f}\tD(x): {:.2f}\tD(G(z)): {:.2f} / {:.2f}'.format(d_running_loss / j, g_running_loss / j, d_running_p_x / j, d_running_p_gz1 / j, d_running_p_gz2 / j))
 
         # For plotting 
-        img_list = []
         with torch.no_grad():
             fake = self.G(self.fixed_noise).detach().cpu()
-            img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
+            result = vutils.make_grid(fake, padding=2, normalize=True)
         
         d_running_loss /= j
         g_running_loss /= j
 
-        return d_running_loss, g_running_loss, img_list
+        return d_running_loss, g_running_loss, result
 
     # def test_model(self):
     #     with torch.no_grad():
