@@ -170,11 +170,15 @@ class Runner(object):
 
             # Update G
             self.g_optimizer.step()
-            print("Iter: {:.1f}% D loss: {:.4f} G loss: {:.4f}".format(itr / len(self.train_loader), (d_running_loss / (itr+1)), (g_running_loss / (itr+1))), end="\r", flush=True)
+            torch.cuda.empty_cache()
+            del feats
+            del targets
+            del errD
+            del errD_fake
+            del errG
+            print("Iter: {}/{} D loss: {:.4f} G loss: {:.4f}".format(itr, len(self.train_loader), (d_running_loss / (itr+1)), (g_running_loss / (itr+1))), end="\r", flush=True)
             
-        print('Running Stats -> Loss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                    % d_running_loss / j, g_running_loss / j, d_running_p_x / j,
-                        d_running_p_gz1 / j, d_running_p_gz2 / j)
+        print('Running Stats -> Loss_D: {:.2f}\tLoss_G: {:.2f}\tD(x): {:.2f}\tD(G(z)): {:.2f} / {:.2f}'.format(d_running_loss / j, g_running_loss / j, d_running_p_x / j, d_running_p_gz1 / j, d_running_p_gz2 / j))
 
         # For plotting 
         img_list = []

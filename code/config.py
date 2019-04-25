@@ -97,9 +97,9 @@ use_tensorboard = True
 random_seed = 1111
 
 # Directories
-image_dir = '/home/dhananjai/Documents/data/Img/img_align_celeba/'
+image_dir = '/home/dhananjaisharma26/data/img_align_celeba/'
 
-attr_path = '/home/dhananjai/Documents/data/Anno/list_attr_celeba.txt'
+attr_path = '/home/dhananjaisharma26/list_attr_celeba.txt'
 
 log_dir = './../logs'
 
