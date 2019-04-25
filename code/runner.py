@@ -50,6 +50,7 @@ class Runner(object):
         self.criterion = nn.BCELoss()
         # A batch of test images
         self.fixed_feats = None
+	# Making test loader's shuffle True for now.
         for _, (_, feats) in enumerate(self.test_loader, 0):
             self.fixed_feats = feats.view(feats.size(0), feats.size(1), 1, 1).to(self.device)
             break
@@ -181,7 +182,7 @@ class Runner(object):
 
         # For plotting 
         with torch.no_grad():
-            fake = self.G(self.fixed_noise).detach().cpu()
+            fake = self.G(self.fixed_feats).detach().cpu()
             result = vutils.make_grid(fake, padding=2, normalize=True)
         
         d_running_loss /= j

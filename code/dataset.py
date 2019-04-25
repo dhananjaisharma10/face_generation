@@ -80,7 +80,8 @@ def get_loader(image_dir, attr_path, crop_size=178, image_size=64,
     dataset = CelebA(image_dir, attr_path,  transform, mode)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batch_size,
-                                  shuffle=(mode=='train'),
+                                  shuffle=True,
+                                  #shuffle=(mode=='train'),
                                   num_workers=num_workers)
     data_loader.image_shape = dataset.image_shape
     data_loader.label_shape = dataset.label_shape
