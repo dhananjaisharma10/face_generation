@@ -55,8 +55,23 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
+            # Two residual blocks
+            ResidualBlock(nz, nz),
+            ResidualBlock(nz, nz),
+            ResidualBlock(nz, nz),
+            ResidualBlock(nz, nz),
+            ResidualBlock(nz, nz),
+            ResidualBlock(nz, nz),
             # input is Z, going into a convolution
-            nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0, bias=False),
+            nn.ConvTranspose2d( nz, ngf * 32, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(ngf * 32),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.ConvTranspose2d( ngf * 32, ngf * 16, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(ngf * 16),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.ConvTranspose2d( ngf * 16, ngf * 8, 4, 1, 0, bias=False),
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(True),
             # state size. (ngf*8) x 4 x 4

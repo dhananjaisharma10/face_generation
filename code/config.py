@@ -53,7 +53,7 @@ train_batch_size = 128
 test_batch_size = 64
 
 # num_workers
-num_workers = 1
+num_workers = 4
 
 # n_epochs: number of training epochs
 n_epochs = 20
