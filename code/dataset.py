@@ -25,6 +25,7 @@ class CelebA(data.Dataset):
             self.num_images = len(self.train_dataset)
         else:
             self.num_images = len(self.test_dataset)
+        print('Mode: %s, Num Images: %d' % (mode, self.num_images))
 
     def preprocess(self):
         """Preprocess the CelebA attribute file."""
@@ -63,7 +64,8 @@ class CelebA(data.Dataset):
 
     def __len__(self):
         """Return the number of images."""
-        return self.num_images
+        #return self.num_images
+        return 128
 
 
 def get_loader(image_dir, attr_path, crop_size=178, image_size=64,

@@ -97,9 +97,9 @@ use_tensorboard = True
 random_seed = 1111
 
 # Directories
-image_dir = '/home/dhananjaisharma26/data/img_align_celeba/'
+image_dir = './../data/images/'
 
-attr_path = '/home/dhananjaisharma26/list_attr_celeba.txt'
+attr_path = './../data/list_attr_celeba.txt'
 
 test_feats_path = '/home/dhananjaisharma26/Deep-Learning-Project/test_feats.npy'
 
@@ -107,6 +107,7 @@ test_feats_path = '/home/dhananjaisharma26/Deep-Learning-Project/test_feats.npy'
 
 log_dir = './../logs'
 
+model_save_dir = './../models/'
 model_save_G_dir = './../models/Generator'
 model_save_D_dir = './../models/Discriminator'
 

@@ -36,10 +36,10 @@ class Runner(object):
                                         crop_size=config.crop_size, image_size=config.image_size,
                                         batch_size=config.train_batch_size, mode='train',
                                         num_workers=config.num_workers)
-        # self.test_loader = get_loader(config.image_dir, config.attr_path,
-        #                                 crop_size=config.crop_size, image_size=config.image_size,
-        #                                 batch_size=config.test_batch_size, mode='test',
-        #                                 num_workers=config.num_workers)
+        self.test_loader = get_loader(config.image_dir, config.attr_path,
+                                         crop_size=config.crop_size, image_size=config.image_size,
+                                         batch_size=config.test_batch_size, mode='test',
+                                         num_workers=config.num_workers)
 
         self.g_optimizer = optim.Adam(self.G.parameters(), lr=config.g_lr, weight_decay=config.g_wd)
         self.d_optimizer = optim.Adam(self.D.parameters(), lr=config.d_lr, weight_decay=config.d_wd)
@@ -51,10 +51,13 @@ class Runner(object):
         self.criterion = nn.BCELoss()
         # A batch of test images
         # self.fixed_feats = None
-        self.fixed_feats = torch.from_numpy(np.load(config.test_feats_path)).view(config.test_batch_size,
-                                                    config.c_dim, 1, 1).to(self.device)
-	    # Making test loader's shuffle True for now.
-        # for _, (_, feats) in enumerate(self.test_loader, 0):
+        #self.fixed_feats = torch.from_numpy(np.load(config.test_feats_path)).view(config.test_batch_size,
+        #                                            config.c_dim, 1, 1).to(self.device)
+        _, self.fixed_feats = next(iter(self.test_loader))
+        self.fixed_feats = self.fixed_feats.view(self.fixed_feats.size(0),
+                            self.fixed_feats.size(1), 1, 1).to(self.device)
+
+        #for _, (_, feats) in enumerate(self.test_loader, 0):
         #     self.fixed_feats = feats.view(feats.size(0), feats.size(1), 1, 1).to(self.device)
         #     break
         self.fixed_noise = torch.randn(64, self.nz, 1, 1, device=self.device) # DCGAN
@@ -81,11 +84,11 @@ class Runner(object):
 
         # For each epoch
         d_running_loss = 0
-        
+
         d_running_p_x = 0
         d_running_p_gz1 = 0
         d_running_p_gz2 = 0
-        
+
         g_running_loss = 0
         j = 0
         # For each batch in the dataloader
@@ -159,7 +162,7 @@ class Runner(object):
             # Calculate G's loss based on this output
             errG_real = self.criterion(output_real, label)
             # errG_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
-            
+
             # Calculate gradients for G
             errG = errG_real# + errG_cls
             errG.backward()
@@ -169,7 +172,7 @@ class Runner(object):
             d_running_p_gz2 += D_G_z2
 
             g_running_loss += errG_real.item()# + errG_cls.item()
-            
+
             j = len(self.train_loader)
 
             # Update G
@@ -183,11 +186,11 @@ class Runner(object):
             print("Iter: {}/{} D loss: {:.4f} G loss: {:.4f}".format(itr, len(self.train_loader), (d_running_loss / (itr+1)), (g_running_loss / (itr+1))), end="\r", flush=True)
         print('Running Stats -> Loss_D: {:.2f}\tLoss_G: {:.2f}\tD(x): {:.2f}\tD(G(z)): {:.2f} / {:.2f}'.format(d_running_loss / j, g_running_loss / j, d_running_p_x / j, d_running_p_gz1 / j, d_running_p_gz2 / j))
 
-        # For plotting 
+        # For plotting
         with torch.no_grad():
             fake = self.G(self.fixed_feats).detach().cpu()
             result = vutils.make_grid(fake, padding=2, normalize=True)
-        
+
         d_running_loss /= j
         g_running_loss /= j
 
@@ -207,6 +210,3 @@ class Runner(object):
     #             print('Test Iteration: %d/%d, Saved: %s' % (batch_idx+1, len(self.test_loader), result_path), end="\r", flush=True)
     #         end_time = time.time()
     #         print('\nTest Completed. Time: %d s' % (end_time - start_time))
-
-
-        
