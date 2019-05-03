@@ -4,6 +4,7 @@ import torch
 import config
 import torch.optim as optim
 from dataset import get_loader
+import numpy as np
 import torch.nn.functional as F
 import torch.nn as nn
 import torchvision.utils as vutils
@@ -35,10 +36,10 @@ class Runner(object):
                                         crop_size=config.crop_size, image_size=config.image_size,
                                         batch_size=config.train_batch_size, mode='train',
                                         num_workers=config.num_workers)
-        self.test_loader = get_loader(config.image_dir, config.attr_path,
-                                        crop_size=config.crop_size, image_size=config.image_size,
-                                        batch_size=config.test_batch_size, mode='test',
-                                        num_workers=config.num_workers)
+        # self.test_loader = get_loader(config.image_dir, config.attr_path,
+        #                                 crop_size=config.crop_size, image_size=config.image_size,
+        #                                 batch_size=config.test_batch_size, mode='test',
+        #                                 num_workers=config.num_workers)
 
         self.g_optimizer = optim.Adam(self.G.parameters(), lr=config.g_lr, weight_decay=config.g_wd)
         self.d_optimizer = optim.Adam(self.D.parameters(), lr=config.d_lr, weight_decay=config.d_wd)
@@ -49,11 +50,13 @@ class Runner(object):
         self.nz = config.c_dim
         self.criterion = nn.BCELoss()
         # A batch of test images
-        self.fixed_feats = None
-	# Making test loader's shuffle True for now.
-        for _, (_, feats) in enumerate(self.test_loader, 0):
-            self.fixed_feats = feats.view(feats.size(0), feats.size(1), 1, 1).to(self.device)
-            break
+        # self.fixed_feats = None
+        self.fixed_feats = torch.from_numpy(np.load(config.test_feats_path)).view(config.test_batch_size,
+                                                    config.c_dim, 1, 1).to(self.device)
+	    # Making test loader's shuffle True for now.
+        # for _, (_, feats) in enumerate(self.test_loader, 0):
+        #     self.fixed_feats = feats.view(feats.size(0), feats.size(1), 1, 1).to(self.device)
+        #     break
         self.fixed_noise = torch.randn(64, self.nz, 1, 1, device=self.device) # DCGAN
 
     def classification_loss(self, preds, targets):

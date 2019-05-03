@@ -56,7 +56,7 @@ test_batch_size = 64
 num_workers = 4
 
 # n_epochs: number of training epochs
-n_epochs = 20
+n_epochs = 50
 
 # g_lr: learning rate for G
 g_lr = 0.0001
@@ -100,6 +100,10 @@ random_seed = 1111
 image_dir = '/home/dhananjaisharma26/data/img_align_celeba/'
 
 attr_path = '/home/dhananjaisharma26/list_attr_celeba.txt'
+
+test_feats_path = '/home/dhananjaisharma26/Deep-Learning-Project/test_feats.npy'
+
+# test_images_path = '/home/dhananjai/Deep_learning/Deep-Learning-Project/test_images.npy'
 
 log_dir = './../logs'
 

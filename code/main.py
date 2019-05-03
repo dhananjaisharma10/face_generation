@@ -37,6 +37,7 @@ def plot_loss(G_losses, D_losses, run_id):
     plt.ylabel("Loss")
     plt.legend()
     plt.savefig('experiments/{}/losses.jpeg'.format(run_id), dpi=400, bbox_inches='tight')
+    plt.close()
 
 def plot_images(epoch, img_list, run_id):
     # Grab a batch of real images from the dataloader
@@ -51,6 +52,7 @@ def plot_images(epoch, img_list, run_id):
 
 
 if __name__ == "__main__":
+    torch.backends.cudnn.benchmark = True   # boost speed.
     dt = datetime.now()
     run_id = dt.strftime('%b-%d_%H:%M')
     if not os.path.exists('./experiments'):
