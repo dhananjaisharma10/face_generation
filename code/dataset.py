@@ -64,8 +64,7 @@ class CelebA(data.Dataset):
 
     def __len__(self):
         """Return the number of images."""
-        #return self.num_images
-        return 128
+        return self.num_images
 
 
 def get_loader(image_dir, attr_path, crop_size=178, image_size=64,
