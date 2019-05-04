@@ -12,6 +12,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Training/testing for Face Generation.')
     parser.add_argument('--mode', type=str, choices=['train', 'test'], default='train', help='\'train\' or \'test\' mode.')
     parser.add_argument('--run_id', type=str, default=None, help='Run ID to load model.')
+    parser.add_argument('--reload_model', type=bool, default=False, help='To reload model. True/False')
     parser.add_argument('--g_model_name', type=str, default=None, help='Name of model file for Generator.')
     parser.add_argument('--d_model_name', type=str, default=None, help='Name of model file for Discrimintor.')
     return parser.parse_args()
@@ -60,7 +61,7 @@ if __name__ == "__main__":
 
     print('='*20)
     if args.mode == 'train':
-        runner = Runner()
+        runner = Runner(args=args)
 
         # Prepare directories.
         dt = datetime.now()
@@ -92,9 +93,9 @@ if __name__ == "__main__":
 
     elif args.mode == 'test':
         # For loading pre-trained model.
-        g_path = os.path.join('{}/{}/Generator'.format(config.model_save_dir, args.run_id), args.g_model_name)
+        #g_path = os.path.join('{}/{}/Generator'.format(config.model_save_dir, args.run_id), args.g_model_name)
         #d_path = os.path.join('{}/{}/Discriminator'.format(config.model_save_dir, args.run_id), args.d_model_name)
-        runner = Runner(reload_model=True, g_model_path=g_path)
+        runner = Runner(args=args)
         result = runner.test_model()
         plot_images(9999, result, args.run_id)
         print('='*20)

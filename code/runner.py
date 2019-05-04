@@ -22,7 +22,7 @@ def weights_init(m):
         nn.init.constant_(m.bias.data, 0)
 
 class Runner(object):
-    def __init__(self, reload_model=False, g_model_path=None, d_model_path=None):
+    def __init__(self, args):
         super(Runner, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -35,14 +35,20 @@ class Runner(object):
         #     print(param.data)
         #     break
 
-        if reload_model:
+        if args.reload_model:
             # Load pre-trained model.
-            if g_model_path is not None:
+            if args.g_model_name is not None:
+                g_model_path = os.path.join(
+                                '{}/{}/Generator'.format(config.model_save_dir, args.run_id),
+                                args.g_model_name)
                 self.G.load_state_dict(torch.load(g_model_path, map_location=self.device))
                 print('Loaded Generator model:', g_model_path)
             else:
                 self.G.apply(weights_init)
-            if d_model_path is not None:
+            if args.d_model_name is not None:
+                d_model_path = os.path.join(
+                                '{}/{}/Discriminator'.format(config.model_save_dir, args.run_id),
+                                args.d_model_name)
                 self.D.load_state_dict(torch.load(d_model_path, map_location=self.device))
                 print('Loaded Discriminator model:', d_model_path)
             else:
