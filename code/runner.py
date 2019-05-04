@@ -203,9 +203,11 @@ class Runner(object):
             # Calculate G's loss based on this output
             errG_real = self.criterion(output_real, label)
             errG_r_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
+            errG_r_img = torch.mean(torch.abs(targets - fake))      # equivalent to reconstruction loss.
 
             # Calculate gradients for G
-            errG = errG_real + errG_r_cls
+            #errG = errG_real + errG_r_cls    # For domain classification loss only.
+            errG = errG_real + errG_r_cls + errG_r_img
             #errG = errG_real
             errG.backward()
 
