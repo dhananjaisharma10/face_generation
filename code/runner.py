@@ -140,22 +140,24 @@ class Runner(object):
             label = torch.full((b_size,), config.real_label, device=self.device) # all 1's
 
             # Forward pass real batch through D
-            # output_real, output_cls = self.D(targets)
+            output_real, output_cls = self.D(targets)
             # NOTE: DCGAN implementation
-            output_real, _ = self.D(targets)
+            # output_real, _ = self.D(targets)
 
             # Calculate loss
             errD_real = self.criterion(output_real, label)
-            # errD_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
+            errD_r_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
 
             # Calculate gradients for D in backward pass
-            errD = errD_real# + errD_cls
+            errD = errD_real + errD_r_cls
+            #errD = errD_real
             errD.backward()
             # FIXME: Check if this value is too huge? Would suggest that we are not actually taking mean.
             D_real = output_real.mean().item()
-            # D_cls = output_cls.mean().item()
+            #D_cls = output_cls.mean().item()
 
-            d_running_p_x += D_real# + D_cls
+            d_running_p_x += D_real
+            #d_running_p_x += D_real + D_cls
 
             ## Train with all-fake batch
             fake = self.G(feats)
@@ -165,18 +167,24 @@ class Runner(object):
             label.fill_(config.fake_label) # all 0's
 
             # Classify all fake batch with D
-            # output_real, output_cls = self.D(fake.detach())
-            output_real, _ = self.D(fake.detach())
+            output_real, output_cls = self.D(fake.detach())
+            # output_real, _ = self.D(fake.detach())
 
             # Calculate loss
             errD_fake = self.criterion(output_real, label)
-            errD_fake.backward()
+            errD_f_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
+
+            errD_f = errD_fake + errD_f_cls
+            errD_f.backward()
+
+            #errD_fake.backward()
+
             # FIXME: Check if this value is too huge? Would suggest that we are not actually taking mean.
             D_G_z1 = output_real.mean().item()
             d_running_p_gz1 += D_G_z1
 
-            # d_running_loss += errD_real.item() + errD_cls.item() + errD_fake.item()
-            d_running_loss += errD_real.item() + errD_fake.item()
+            d_running_loss += errD.item() + errD_f.item()
+            #d_running_loss += errD_real.item() + errD_fake.item()
 
             # Update D
             self.d_optimizer.step()
@@ -187,23 +195,26 @@ class Runner(object):
             self.G.zero_grad()
 
             label.fill_(config.real_label)  # fake labels are real for generator cost
-            # output_real, output_cls = self.D(fake)
+            output_real, output_cls = self.D(fake)
+
             # NOTE: DCGAN implementation
-            output_real, _ = self.D(fake)
+            #output_real, _ = self.D(fake)
 
             # Calculate G's loss based on this output
             errG_real = self.criterion(output_real, label)
-            # errG_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
+            errG_r_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
 
             # Calculate gradients for G
-            errG = errG_real# + errG_cls
+            errG = errG_real + errG_r_cls
+            #errG = errG_real
             errG.backward()
 
             # FIXME: Check if this value is too huge? Would suggest that we are not actually taking mean.
             D_G_z2 = output_real.mean().item()
             d_running_p_gz2 += D_G_z2
 
-            g_running_loss += errG_real.item()# + errG_cls.item()
+            #g_running_loss += errG_real.item()
+            g_running_loss += errG.item()
 
             # Update G
             self.g_optimizer.step()
@@ -215,12 +226,12 @@ class Runner(object):
                     (d_running_loss / (itr+1)), (g_running_loss / (itr+1))), end="\r", flush=True)
 
         end_time = time.time()
-        min_time = (end_time - start_time)//60
+        min_time = (end_time - start_time) // 60
         sec_time = (end_time - start_time) - (min_time*60)
         total_iter = len(self.train_loader)
         print('\nRunning Stats -> Loss_D: {:.2f} Loss_G: {:.2f} D(x): {:.2f} D(G(z)): {:.2f} / {:.2f} Time: {}m{}s'.format(
                 d_running_loss / total_iter, g_running_loss / total_iter, d_running_p_x / total_iter,
-                d_running_p_gz1 / total_iter, d_running_p_gz2 / total_iter, min_time, sec_time))
+                d_running_p_gz1 / total_iter, d_running_p_gz2 / total_iter, int(min_time), int(sec_time)))
 
         # For plotting
         with torch.no_grad():
