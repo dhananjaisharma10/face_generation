@@ -107,7 +107,7 @@ test_feats_path = '/home/dhananjaisharma26/Deep-Learning-Project/test_feats.npy'
 
 log_dir = './../logs'
 
-model_save_dir = './../models/'
+model_save_dir = './../models'
 model_save_G_dir = './../models/Generator'
 model_save_D_dir = './../models/Discriminator'
 

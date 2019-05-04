@@ -22,15 +22,40 @@ def weights_init(m):
         nn.init.constant_(m.bias.data, 0)
 
 class Runner(object):
-    def __init__(self):
+    def __init__(self, reload_model=False, g_model_path=None, d_model_path=None):
         super(Runner, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.D = Discriminator(ngpu=config.ngpu)#, nc=config.d_in_channels, ndf=config.d_conv_dim)
         self.G = Generator(ngpu=config.ngpu)#, nz=config.c_dim,
                             # ngf=config.g_conv_dim, nc=config.g_out_channels)
-        self.D.apply(weights_init)
-        self.G.apply(weights_init)
+
+        # print('Debug G params:')
+        # for param in self.G.parameters():
+        #     print(param.data)
+        #     break
+
+        if reload_model:
+            # Load pre-trained model.
+            if g_model_path is not None:
+                self.G.load_state_dict(torch.load(g_model_path, map_location=self.device))
+                print('Loaded Generator model:', g_model_path)
+            else:
+                self.G.apply(weights_init)
+            if d_model_path is not None:
+                self.D.load_state_dict(torch.load(d_model_path, map_location=self.device))
+                print('Loaded Discriminator model:', d_model_path)
+            else:
+                self.D.apply(weights_init)
+        else:
+            self.D.apply(weights_init)
+            self.G.apply(weights_init)
+
+        # print('Debug G params:')
+        # for param in self.G.parameters():
+        #     print(param.data)
+        #     break
+
         self.D, self.G = self.D.to(self.device), self.G.to(self.device)
         self.train_loader = get_loader(config.image_dir, config.attr_path,
                                         crop_size=config.crop_size, image_size=config.image_size,
@@ -90,8 +115,8 @@ class Runner(object):
         d_running_p_gz2 = 0
 
         g_running_loss = 0
-        j = 0
-        # For each batch in the dataloader
+
+        start_time = time.time()
         for itr, (targets, feats) in enumerate(self.train_loader, 0):
 
             ############################
@@ -173,40 +198,43 @@ class Runner(object):
 
             g_running_loss += errG_real.item()# + errG_cls.item()
 
-            j = len(self.train_loader)
-
             # Update G
             self.g_optimizer.step()
+
+            # Cleanup
             torch.cuda.empty_cache()
-            del feats
-            del targets
-            del errD
-            del errD_fake
-            del errG
-            print("Iter: {}/{} D loss: {:.4f} G loss: {:.4f}".format(itr, len(self.train_loader), (d_running_loss / (itr+1)), (g_running_loss / (itr+1))), end="\r", flush=True)
-        print('Running Stats -> Loss_D: {:.2f}\tLoss_G: {:.2f}\tD(x): {:.2f}\tD(G(z)): {:.2f} / {:.2f}'.format(d_running_loss / j, g_running_loss / j, d_running_p_x / j, d_running_p_gz1 / j, d_running_p_gz2 / j))
+            del feats, targets, errD, errD_fake, errG
+            print("Iter: {}/{} D loss: {:.4f} G loss: {:.4f}".format(itr, len(self.train_loader),
+                    (d_running_loss / (itr+1)), (g_running_loss / (itr+1))), end="\r", flush=True)
+
+        end_time = time.time()
+        min_time = (end_time - start_time)//60
+        sec_time = (end_time - start_time) - (min_time*60)
+        total_iter = len(self.train_loader)
+        print('\nRunning Stats -> Loss_D: {:.2f} Loss_G: {:.2f} D(x): {:.2f} D(G(z)): {:.2f} / {:.2f} Time: %dm%ds'.format(
+                d_running_loss / total_iter, g_running_loss / total_iter, d_running_p_x / total_iter,
+                d_running_p_gz1 / total_iter, d_running_p_gz2 / total_iter, min_time, sec_time))
 
         # For plotting
         with torch.no_grad():
             fake = self.G(self.fixed_feats).detach().cpu()
             result = vutils.make_grid(fake, padding=2, normalize=True)
 
-        d_running_loss /= j
-        g_running_loss /= j
+        d_running_loss /= total_samples
+        g_running_loss /= total_samples
 
         return d_running_loss, g_running_loss, result
 
-    # def test_model(self):
-    #     with torch.no_grad():
-    #         self.D.eval()
-    #         self.G.eval()
-    #         start_time = time.time()
-    #         for batch_idx, (imgs, targets) in enumerate(self.test_loader):
-    #             imgs, targets = imgs.to(self.device), targets.to(self.device)
-    #             imgs_fake = self.G(targets)
-    #             imgs_concat = torch.cat([imgs, imgs_fake], dim=0)
-    #             result_path = os.path.join(self.result_dir, '{}-images.jpg'.format(batch_idx+1))
-    #             save_image(self.denorm(imgs_concat.data.cpu()), result_path, nrow=1, padding=0)
-    #             print('Test Iteration: %d/%d, Saved: %s' % (batch_idx+1, len(self.test_loader), result_path), end="\r", flush=True)
-    #         end_time = time.time()
-    #         print('\nTest Completed. Time: %d s' % (end_time - start_time))
+    def test_model(self):
+        with torch.no_grad():
+            self.G.eval()
+            start_time = time.time()
+            with torch.no_grad():
+                fake = self.G(self.fixed_feats).detach().cpu()
+                #print(fake)
+                result = vutils.make_grid(fake, padding=2, normalize=True)
+            end_time = time.time()
+            min_time = (end_time - start_time)//60
+            sec_time = (end_time - start_time) - (min_time*60)
+            print('Test Completed. Time: %dm%ds' % (min_time,sec_time))
+            return result
