@@ -249,12 +249,13 @@ class Runner(object):
             start_time = time.time()
             with torch.no_grad():
                 for j in range(40):
-                    for i in range(self.fixed_feats.size(0)):
-                        if self.fixed_feats[i,j,:,:] == 0:
-                            self.fixed_feats[i,j,:,:] = 1
+                    feat = self.fixed_feats.clone()
+                    for i in range(feat.size(0)):
+                        if feat[i,j,:,:] == 0:
+                            feat[i,j,:,:] = 1
                         else:
-                            self.fixed_feats[i,j,:,:] = 0
-                    fake = self.G(self.fixed_feats).detach().cpu()
+                            feat[i,j,:,:] = 0
+                    fake = self.G(feat).detach().cpu()
                     result = vutils.make_grid(fake, padding=2, normalize=True)
                     plot_images('9999'+str(j+1), result, self.args.run_id)
             end_time = time.time()
