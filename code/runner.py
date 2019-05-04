@@ -220,8 +220,8 @@ class Runner(object):
             fake = self.G(self.fixed_feats).detach().cpu()
             result = vutils.make_grid(fake, padding=2, normalize=True)
 
-        d_running_loss /= total_samples
-        g_running_loss /= total_samples
+        d_running_loss /= total_iter
+        g_running_loss /= total_iter
 
         return d_running_loss, g_running_loss, result
 
