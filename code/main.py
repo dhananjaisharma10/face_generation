@@ -49,10 +49,9 @@ def plot_images(epoch, img, run_id):
     fig = plt.figure(figsize=(10,5))
     plt.axis("off")
     plt.title("Fake Image {}".format(epoch))
-    plt.imshow(np.transpose(img_list,(1,2,0))) # plot the latest epoch
+    plt.imshow(np.transpose(img,(1,2,0))) # plot the latest epoch
     plt.savefig(os.path.join(config.result_dir,'{}/images_{}.jpeg'.format(run_id, epoch)), dpi=400, bbox_inches='tight')
     plt.close(fig)
-
 
 if __name__ == "__main__":
     torch.backends.cudnn.benchmark = True   # boost speed.
@@ -97,5 +96,5 @@ if __name__ == "__main__":
         #d_path = os.path.join('{}/{}/Discriminator'.format(config.model_save_dir, args.run_id), args.d_model_name)
         runner = Runner(reload_model=True, g_model_path=g_path)
         result = runner.test_model()
-        plot_images(9999, [result], args.run_id)
+        plot_images(9999, result, args.run_id)
         print('='*20)
