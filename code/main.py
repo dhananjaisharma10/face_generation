@@ -97,5 +97,5 @@ if __name__ == "__main__":
         #d_path = os.path.join('{}/{}/Discriminator'.format(config.model_save_dir, args.run_id), args.d_model_name)
         runner = Runner(args=args)
         result = runner.test_model()
-        plot_images(9999, result, args.run_id)
+        #plot_images(9999, result, args.run_id)
         print('='*20)

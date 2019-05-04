@@ -24,6 +24,7 @@ def weights_init(m):
 class Runner(object):
     def __init__(self, args):
         super(Runner, self).__init__()
+        self.args=args
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.D = Discriminator(ngpu=config.ngpu)#, nc=config.d_in_channels, ndf=config.d_conv_dim)
@@ -217,7 +218,7 @@ class Runner(object):
         min_time = (end_time - start_time)//60
         sec_time = (end_time - start_time) - (min_time*60)
         total_iter = len(self.train_loader)
-        print('\nRunning Stats -> Loss_D: {:.2f} Loss_G: {:.2f} D(x): {:.2f} D(G(z)): {:.2f} / {:.2f} Time: %dm%ds'.format(
+        print('\nRunning Stats -> Loss_D: {:.2f} Loss_G: {:.2f} D(x): {:.2f} D(G(z)): {:.2f} / {:.2f} Time: {}m{}s'.format(
                 d_running_loss / total_iter, g_running_loss / total_iter, d_running_p_x / total_iter,
                 d_running_p_gz1 / total_iter, d_running_p_gz2 / total_iter, min_time, sec_time))
 
@@ -233,14 +234,29 @@ class Runner(object):
 
     def test_model(self):
         with torch.no_grad():
-            self.G.eval()
+            #self.G.eval()  #FIXME: Why is .eval causing the image to be black/all_zero?
             start_time = time.time()
             with torch.no_grad():
-                fake = self.G(self.fixed_feats).detach().cpu()
-                #print(fake)
-                result = vutils.make_grid(fake, padding=2, normalize=True)
+                for j in range(40):
+                    for i in range(self.fixed_feats.size(0)):
+                        if self.fixed_feats[i,j,:,:] == 0:
+                            self.fixed_feats[i,j,:,:] = 1
+                        else:
+                            self.fixed_feats[i,j,:,:] = 0
+                    fake = self.G(self.fixed_feats).detach().cpu()
+                    result = vutils.make_grid(fake, padding=2, normalize=True)
+                    plot_images('9999'+str(j+1), result, self.args.run_id)
             end_time = time.time()
             min_time = (end_time - start_time)//60
             sec_time = (end_time - start_time) - (min_time*60)
             print('Test Completed. Time: %dm%ds' % (min_time,sec_time))
             return result
+
+import matplotlib.pyplot as plt
+def plot_images(epoch, img, run_id):
+    fig = plt.figure(figsize=(10,5))
+    plt.axis("off")
+    plt.title("Fake Image {}".format(epoch))
+    plt.imshow(np.transpose(img,(1,2,0))) # plot the latest epoch
+    plt.savefig(os.path.join(config.result_dir,'{}/images_{}.jpeg'.format(run_id, epoch)), dpi=400, bbox_inches='tight')
+    plt.close(fig)
