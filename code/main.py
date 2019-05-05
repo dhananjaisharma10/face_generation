@@ -40,7 +40,7 @@ def plot_loss(G_losses, D_losses, run_id):
     plt.title("Generator and Discriminator Loss During Training")
     plt.plot(G_losses,label="G")
     plt.plot(D_losses,label="D")
-    plt.xlabel("iterations")
+    plt.xlabel("Epochs")
     plt.ylabel("Loss")
     plt.legend()
     plt.savefig(os.path.join(config.result_dir,'{}/losses.jpeg'.format(run_id)), dpi=400, bbox_inches='tight')

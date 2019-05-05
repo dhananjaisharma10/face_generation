@@ -258,6 +258,8 @@ class Runner(object):
                         else:
                             feat[i,j,:,:] = 0
                     fake = self.G(feat).detach().cpu()
+                    # Upsampling image.
+                    fake = F.upsample(fake, size_new=(128,128), mode=‘bilinear’)
                     result = vutils.make_grid(fake, padding=2, normalize=True)
                     plot_images('9999'+str(j+1), result, self.args.run_id)
             end_time = time.time()
