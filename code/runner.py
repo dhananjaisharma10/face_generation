@@ -72,7 +72,8 @@ class Runner(object):
                                          crop_size=config.crop_size, image_size=config.image_size,
                                          batch_size=config.test_batch_size, mode='test',
                                          num_workers=config.num_workers)
-
+        #WARNING: If we are loading pre trained modals in between epoches to continue training, we should also load the optimiser.
+        
         self.g_optimizer = optim.Adam(self.G.parameters(), lr=config.g_lr, weight_decay=config.g_wd)
         self.d_optimizer = optim.Adam(self.D.parameters(), lr=config.d_lr, weight_decay=config.d_wd)
         self.lambda_cls = config.lambda_cls
