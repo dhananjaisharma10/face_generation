@@ -1,3 +1,4 @@
 # Deep-Learning-Project
 
-Please write the documentation for using a particular file.
+Please read the project report for better understading of the project. 
+
