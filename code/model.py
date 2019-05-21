@@ -54,49 +54,7 @@ class Generator(nn.Module):
     def __init__(self, ngpu, nz=40, ngf=64, nc=3):
         super(Generator, self).__init__()
         self.ngpu = ngpu
-        # self.main = nn.Sequential(
-        #     # Two residual blocks
-        #     ResidualBlock(nz, nz),
-        #     ResidualBlock(nz, nz),
-        #     ResidualBlock(nz, nz),
-        #     ResidualBlock(nz, nz),
-            
-        #     # input is Z, going into a convolution
-        #     nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0, bias=False),
-        #     nn.BatchNorm2d(ngf * 8),
-        #     # state size. 512 x 4 x 4
-        #     nn.ConvTranspose2d( ngf * 8, ngf * 8, 3, 1, 1, bias=False),
-        #     nn.BatchNorm2d(ngf * 8),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. 512 x 4 x 4
-        #     nn.ConvTranspose2d( ngf * 8, ngf * 4, 4, 2, 1, bias=False),
-        #     nn.BatchNorm2d(ngf * 4),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. 256 x 8 x 8
-        #     nn.ConvTranspose2d(ngf * 4, ngf * 4, 3, 1, 1, bias=False),
-        #     nn.BatchNorm2d(ngf * 4),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. 256 x 8 x 8
-        #     nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
-        #     nn.BatchNorm2d(ngf * 2),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. 128 x 16 x 16
-        #     nn.ConvTranspose2d( ngf * 2, ngf * 2, 3, 1, 1, bias=False),
-        #     nn.BatchNorm2d(ngf * 2),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. 128 x 16 x 16
-        #     nn.ConvTranspose2d( ngf * 2, ngf, 4, 2, 1, bias=False),
-        #     nn.BatchNorm2d(ngf),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. 64 x 32 x 32
-        #     nn.ConvTranspose2d( ngf, ngf, 3, 1, 1, bias=False),
-        #     nn.BatchNorm2d(ngf),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. 64 x 32 x 32
-        #     nn.ConvTranspose2d( ngf, nc, 4, 2, 1, bias=False),
-        #     nn.Tanh()
-        #     # state size. 3 x 64 x 64
-        # )
+        
         self.main = nn.Sequential(
             # Residual Blocks
             ResidualBlock(nz, nz),
@@ -151,40 +109,7 @@ class Discriminator(nn.Module):
             nn.BatchNorm2d(ndf * 8),
             nn.LeakyReLU(0.2, inplace=True)
         )
-        # self.main = nn.Sequential(
-        #     # input is (nc) x 64 x 64
-        #     nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # input is ndf x 32 x 32
-        #     nn.Conv2d(ndf, ndf, 3, 1, 1, bias=False),
-        #     nn.BatchNorm2d(ndf),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # input is ndf x 32 x 32
-        #     nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
-        #     nn.BatchNorm2d(ndf * 2),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. (ndf*2) x 16 x 16
-        #     nn.Conv2d(ndf * 2, ndf * 2, 3, 1, 1, bias=False),
-        #     nn.BatchNorm2d(ndf * 2),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. (ndf*2) x 16 x 16
-        #     nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
-        #     nn.BatchNorm2d(ndf * 4),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. (ndf*4) x 8 x 8
-        #     nn.Conv2d(ndf * 4, ndf * 4, 3, 1, 1, bias=False),
-        #     nn.BatchNorm2d(ndf * 4),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. (ndf*4) x 8 x 8
-        #     nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
-        #     nn.BatchNorm2d(ndf * 8),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     # state size. (ndf*4) x 4 x 4
-        #     nn.Conv2d(ndf * 8, ndf * 8, 3, 1, 1, bias=False),
-        #     nn.BatchNorm2d(ndf * 8),
-        #     nn.LeakyReLU(0.2, inplace=True)
-        #     # state size. (ndf*4) x 4 x 4
-        # )
+       
 
         # state size. (ndf*8) x 4 x 4
         # Used to classify whether real/fake
