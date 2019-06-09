@@ -13,9 +13,7 @@ The directory ```code``` contains files used to build and run the model. A brief
 
 4. ```model.py``` defines the generator and the discriminator networks.
 
-5. In order to run the model, type the following command:
+5. In order to run the model, type the following command from within the ```code``` directory:
 ```
 python3 main.py
 ```
-
-For further details, please refer to the project report and poster.
