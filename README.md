@@ -9,6 +9,7 @@ We use the [CelebFaces Attributes Dataset](http://mmlab.ie.cuhk.edu.hk/projects/
 ## Machine Learning Library
 The project code was written using the ```PyTorch``` library.
 
+## Usage
 The directory ```code``` contains files used to build and run the model. A brief description is as follows:
 1. ```dataset.py``` defines the dataloader.
 
