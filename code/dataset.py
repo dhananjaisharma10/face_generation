@@ -23,8 +23,10 @@ class CelebA(data.Dataset):
         self.preprocess()
         if mode == 'train':
             self.num_images = len(self.train_dataset)
-        else:
+        elif mode == 'test':
             self.num_images = len(self.test_dataset)
+        else:   # mode == all
+            self.num_images = len(self.train_dataset) + len(self.test_dataset)
         print('Mode: %s, Num Images: %d' % (mode, self.num_images))
 
     def preprocess(self):
@@ -57,7 +59,11 @@ class CelebA(data.Dataset):
 
     def __getitem__(self, index):
         """Return one image and its corresponding attribute label."""
-        dataset = self.train_dataset if self.mode == 'train' else self.test_dataset
+        mode = self.mode
+        if self.mode == 'all':
+            mode = 'train' if index < len(self.train_dataset) else 'test'
+            index = index if index < len(self.train_dataset) else index - len(self.train_dataset)
+        dataset = self.train_dataset if mode == 'train' else self.test_dataset
         filename, label = dataset[index]
         image = Image.open(os.path.join(self.image_dir, filename))
         return self.transform(image), torch.FloatTensor(label)
@@ -65,7 +71,6 @@ class CelebA(data.Dataset):
     def __len__(self):
         """Return the number of images."""
         return self.num_images
-
 
 def get_loader(image_dir, attr_path, crop_size=178, image_size=64,
                batch_size=16, mode='train', num_workers=1):
@@ -81,7 +86,7 @@ def get_loader(image_dir, attr_path, crop_size=178, image_size=64,
     dataset = CelebA(image_dir, attr_path,  transform, mode)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batch_size,
-                                  shuffle=(mode=='train'),
+                                  shuffle=(mode=='train' or mode=='all'),
                                   num_workers=num_workers)
     data_loader.image_shape = dataset.image_shape
     data_loader.label_shape = dataset.label_shape

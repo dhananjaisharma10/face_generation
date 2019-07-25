@@ -3,3 +3,4 @@ models/*
 results/*
 *.swp
 code/__pycache__/*
+code/efficient_net/__pycache__/*
