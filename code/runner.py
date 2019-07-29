@@ -2,15 +2,13 @@ import os
 import time
 import torch
 import config
-import torch.optim as optim
-from dataset import get_loader
-import numpy as np
-import torch.nn.functional as F
 import torch.nn as nn
+import torch.optim as optim
+from utils import plot_images
+from dataset import get_loader
+import torch.nn.functional as F
 import torchvision.utils as vutils
-from torchvision.utils import save_image
 from model import Discriminator, Generator
-
 
 # custom weights initialization called on netG and netD
 def weights_init(m):
@@ -24,44 +22,26 @@ def weights_init(m):
 class Runner(object):
     def __init__(self, args):
         super(Runner, self).__init__()
-        self.args=args
+        self.args = args
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        self.D = Discriminator(ngpu=config.ngpu)#, nc=config.d_in_channels, ndf=config.d_conv_dim)
-        self.G = Generator(ngpu=config.ngpu)#, nz=config.c_dim,
-                            # ngf=config.g_conv_dim, nc=config.g_out_channels)
-
-        # print('Debug G params:')
-        # for param in self.G.parameters():
-        #     print(param.data)
-        #     break
-
+        self.G = Generator(in_dim=config.g_input_dim, conv_dim=config.g_conv_dim,
+                            out_dim=config.g_out_channels)
+        self.D = Discriminator(in_dim=config.d_in_channels, conv_dim=config.d_conv_dim,
+                                label_dim=config.d_cls_dim)
         if args.reload_model:
             # Load pre-trained model.
-            if args.g_model_name is not None:
-                g_model_path = os.path.join(
-                                '{}/{}/Generator'.format(config.model_save_dir, args.run_id),
-                                args.g_model_name)
-                self.G.load_state_dict(torch.load(g_model_path, map_location=self.device))
-                print('Loaded Generator model:', g_model_path)
+            if args.model_name is None:
+                raise ValueError('Requested reload_model but get model_name as None.')
             else:
-                self.G.apply(weights_init)
-            if args.d_model_name is not None:
-                d_model_path = os.path.join(
-                                '{}/{}/Discriminator'.format(config.model_save_dir, args.run_id),
-                                args.d_model_name)
-                self.D.load_state_dict(torch.load(d_model_path, map_location=self.device))
-                print('Loaded Discriminator model:', d_model_path)
-            else:
-                self.D.apply(weights_init)
+                model_path = os.path.join('{}/{}'.format(config.models_dir, args.run_id),
+                                            args.model_name)
+                model_dict = torch.load(model_path, map_location=self.device)
+                self.G.load_state_dict(model_dict['Generator'])
+                self.D.load_state_dict(model_dict['Discriminator'])
+                print('Loaded model:', model_path)
         else:
             self.D.apply(weights_init)
             self.G.apply(weights_init)
-
-        # print('Debug G params:')
-        # for param in self.G.parameters():
-        #     print(param.data)
-        #     break
 
         self.D, self.G = self.D.to(self.device), self.G.to(self.device)
         self.train_loader = get_loader(config.image_dir, config.attr_path,
@@ -72,31 +52,23 @@ class Runner(object):
                                          crop_size=config.crop_size, image_size=config.image_size,
                                          batch_size=config.test_batch_size, mode='test',
                                          num_workers=config.num_workers)
+
         #WARNING: If we are loading pre trained modals in between epoches to continue training, we should also load the optimiser.
-        
+
         self.g_optimizer = optim.Adam(self.G.parameters(), lr=config.g_lr, weight_decay=config.g_wd)
         self.d_optimizer = optim.Adam(self.D.parameters(), lr=config.d_lr, weight_decay=config.d_wd)
-        self.lambda_cls = config.lambda_cls
-        self.lambda_gp = config.lambda_gp
-        self.n_critic = config.n_critic
+        self.d_update_ratio = config.d_update_ratio
         self.result_dir = config.result_dir
-        self.nz = config.c_dim
-        self.criterion = nn.BCELoss()
+        self.label_dim = config.g_input_dim
+        self.adv_loss = nn.BCELoss()
+
         # A batch of test images
-        # self.fixed_feats = None
-        #self.fixed_feats = torch.from_numpy(np.load(config.test_feats_path)).view(config.test_batch_size,
-        #                                            config.c_dim, 1, 1).to(self.device)
         _, self.fixed_feats = next(iter(self.test_loader))
         self.fixed_feats = self.fixed_feats.view(self.fixed_feats.size(0),
                             self.fixed_feats.size(1), 1, 1).to(self.device)
 
-        #for _, (_, feats) in enumerate(self.test_loader, 0):
-        #     self.fixed_feats = feats.view(feats.size(0), feats.size(1), 1, 1).to(self.device)
-        #     break
-        self.fixed_noise = torch.randn(64, self.nz, 1, 1, device=self.device) # DCGAN
-
-    def classification_loss(self, preds, targets):
-        #return F.binary_cross_entropy_with_logits(preds, targets, reduction='mean') / targets.size(0)
+    def cls_loss(self, preds, targets):
+        # return F.binary_cross_entropy_with_logits(preds, targets, reduction='mean') / targets.size(0)
         # FIXME: Why does STARGAN divide by targets.size(0) if reduction is already mean?
         return F.binary_cross_entropy_with_logits(preds, targets, reduction='mean')
 
@@ -104,176 +76,114 @@ class Runner(object):
         self.g_optimizer.zero_grad()
         self.d_optimizer.zero_grad()
 
-    def denorm(self, x):
-        """Convert the range from [-1, 1] to [0, 1]."""
-        out = (x + 1) / 2
-        return out.clamp_(0, 1)
-
     def train_model(self):
         self.D.train()
         self.G.train()
-        # Training Loop
-        # Lists to keep track of progress
-
-        # For each epoch
-        d_running_loss = 0
-
-        d_running_p_x = 0
-        d_running_p_gz1 = 0
-        d_running_p_gz2 = 0
-
-        g_running_loss = 0
+        # Progress tracking parameters.
+        d_running_loss = 0      # Discriminator running loss.
+        g_running_loss = 0      # Generator running loss.
+        running_p_real = 0      # Accumulated predicted probability of real batch.
+        running_p_fake = 0      # Accumulated predicted probability of fake batch.
+        running_p_fake_2 = 0    # Accumulated predicted probability of fake batch after one D update.
 
         start_time = time.time()
-        for itr, (targets, feats) in enumerate(self.train_loader, 0):
+        for itr, (imgs, labels) in enumerate(self.train_loader, 0):
+            batch_size = labels.size(0)
+            labels, imgs = labels.to(self.device), imgs.to(self.device)
+            labels = labels.view(batch_size, self.label_dim, 1, 1)
+            fake_imgs = self.G(labels)      # Generate fake images using G.
 
             ############################
             # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-            ###########################
-
-            feats, targets = feats.to(self.device), targets.to(self.device)
-            b_size = feats.size(0)
-            feats = feats.view(b_size, self.nz, 1, 1)
-
+            ############################
             self.D.zero_grad()
 
-            ## Train with all-real batch
-            label = torch.full((b_size,), config.real_label, device=self.device) # all 1's
+            # Train with all-real batch.
+            gt_prob = torch.full((batch_size,), config.real_prob, device=self.device)           # Ground truth probabilities.
+            pred_prob, pred_cls = self.D(imgs)                                                  # Forward pass real batch through D.
+            d_adv_loss = self.adv_loss(pred_prob, gt_prob)                                      # Adversarial loss.
+            d_cls_loss = self.cls_loss(pred_cls, labels.view(labels.size(0), labels.size(1)))   # Classification loss.
+            d_loss = d_adv_loss + d_cls_loss
+            d_loss.backward()                           # Calculate gradients for D.
+            running_p_real += pred_prob.mean().item()   # Accumulate predicted probability for real batch.
+            d_running_loss += d_loss.item()             # Accumulate loss for D.
 
-            # Forward pass real batch through D
-            output_real, output_cls = self.D(targets)
-            # NOTE: DCGAN implementation
-            # output_real, _ = self.D(targets)
-
-            # Calculate loss
-            errD_real = self.criterion(output_real, label)
-            errD_r_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
-
-            # Calculate gradients for D in backward pass
-            errD = errD_real + errD_r_cls
-            #errD = errD_real
-            errD.backward()
-            # FIXME: Check if this value is too huge? Would suggest that we are not actually taking mean.
-            D_real = output_real.mean().item()
-            #D_cls = output_cls.mean().item()
-
-            d_running_p_x += D_real
-            #d_running_p_x += D_real + D_cls
-
-            ## Train with all-fake batch
-            fake = self.G(feats)
-            # NOTE: DCGAN implementation
-            # noise = torch.randn(b_size, self.nz, 1, 1, device=self.device)
-            # fake = self.G(noise)
-            label.fill_(config.fake_label) # all 0's
-
-            # Classify all fake batch with D
-            output_real, output_cls = self.D(fake.detach())
-            # output_real, _ = self.D(fake.detach())
-
-            # Calculate loss
-            errD_fake = self.criterion(output_real, label)
-            errD_f_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
-
-            errD_f = errD_fake + errD_f_cls
-            errD_f.backward()
-
-            #errD_fake.backward()
-
-            # FIXME: Check if this value is too huge? Would suggest that we are not actually taking mean.
-            D_G_z1 = output_real.mean().item()
-            d_running_p_gz1 += D_G_z1
-
-            d_running_loss += errD.item() + errD_f.item()
-            #d_running_loss += errD_real.item() + errD_fake.item()
+            # Train with all-fake batch
+            gt_prob.fill_(config.fake_prob)                                                     # Ground truth probabilities.
+            pred_prob, pred_cls = self.D(fake_imgs.detach())                                    # Forward pass fake batch through D.
+            d_adv_loss = self.adv_loss(pred_prob, gt_prob)                                      # Adversarial loss.
+            d_cls_loss = self.cls_loss(pred_cls, labels.view(labels.size(0), labels.size(1)))   # Classification loss.
+            d_loss = d_adv_loss + d_cls_loss
+            d_loss.backward()                           # Calculate gradients for D.
+            running_p_fake += pred_prob.mean().item()   # Accumulate predicted probability for real batch.
+            d_running_loss += d_loss.item()             # Accumulate loss for D.
 
             # Update D
             self.d_optimizer.step()
 
             ############################
             # (2) Update G network: maximize log(D(G(z)))
-            ###########################
+            ############################
             self.G.zero_grad()
 
-            label.fill_(config.real_label)  # fake labels are real for generator cost
-            output_real, output_cls = self.D(fake)
-
-            # NOTE: DCGAN implementation
-            #output_real, _ = self.D(fake)
-
-            # Calculate G's loss based on this output
-            errG_real = self.criterion(output_real, label)
-            errG_r_cls = self.classification_loss(output_cls, feats.view(feats.size(0), feats.size(1)))
-            errG_r_img = torch.mean(torch.abs(targets - fake))      # equivalent to reconstruction loss.
-
-            # Calculate gradients for G
-            #errG = errG_real + errG_r_cls    # For domain classification loss only.
-            errG = errG_real + errG_r_cls + errG_r_img
-            #errG = errG_real
-            errG.backward()
-
-            # FIXME: Check if this value is too huge? Would suggest that we are not actually taking mean.
-            D_G_z2 = output_real.mean().item()
-            d_running_p_gz2 += D_G_z2
-
-            #g_running_loss += errG_real.item()
-            g_running_loss += errG.item()
+            # For generator loss, we want discriminator to ideally classify
+            # fake image as real. So ground truth label will be same as real label.
+            gt_prob.fill_(config.real_prob)                                                     # Ground truth probabilities.
+            pred_prob, pred_cls = self.D(fake_imgs)                                             # Forward pass fake batch through D.
+            g_adv_loss = self.adv_loss(pred_prob, gt_prob)                                      # Adversarial loss.
+            g_cls_loss = self.cls_loss(pred_cls, labels.view(labels.size(0), labels.size(1)))   # Classification loss.
+            g_l1_loss = torch.mean(torch.abs(imgs - fake_imgs))                                 # L1 loss for fake image.
+            g_loss = g_adv_loss + g_cls_loss + g_l1_loss
+            g_loss.backward()                           # Calculate gradients for G.
+            running_p_fake_2 += pred_prob.mean().item() # Accumulate predicted probability for real batch.
+            g_running_loss += g_loss.item()             # Accumulate loss for G.
 
             # Update G
             self.g_optimizer.step()
 
             # Cleanup
             torch.cuda.empty_cache()
-            del feats, targets, errD, errD_fake, errG
-            print("Iter: {}/{} D loss: {:.4f} G loss: {:.4f}".format(itr, len(self.train_loader),
-                    (d_running_loss / (itr+1)), (g_running_loss / (itr+1))), end="\r", flush=True)
+            del labels, imgs, g_loss, d_loss, pred_prob, pred_cls
+            del g_adv_loss, g_cls_loss, g_l1_loss, d_adv_loss, d_cls_loss
+
+            print("Iter: {}/{} | D-Loss: {:.4f} | G-Loss: {:.4f}".format(\
+                    itr, len(self.train_loader),(d_running_loss/(itr+1)), (g_running_loss/(itr+1))) + \
+                    " | D(x): {:.4f} | D(G(z)): {:.4f} | Post-D(G(z)): {:.4f}".format(\
+                    (running_p_real/(itr+1)), (running_p_fake/(itr+1)), (running_p_fake_2/(itr+1))),
+                    end="\r", flush=True)
 
         end_time = time.time()
         min_time = (end_time - start_time) // 60
         sec_time = (end_time - start_time) - (min_time*60)
-        total_iter = len(self.train_loader)
-        print('\nRunning Stats -> Loss_D: {:.2f} Loss_G: {:.2f} D(x): {:.2f} D(G(z)): {:.2f} / {:.2f} Time: {}m{}s'.format(
-                d_running_loss / total_iter, g_running_loss / total_iter, d_running_p_x / total_iter,
-                d_running_p_gz1 / total_iter, d_running_p_gz2 / total_iter, int(min_time), int(sec_time)))
+        print('\nRuntime: {}m{}s'.format(int(min_time), int(sec_time)), flush=True)
 
         # For plotting
         with torch.no_grad():
-            fake = self.G(self.fixed_feats).detach().cpu()
-            result = vutils.make_grid(fake, padding=2, normalize=True)
+            fake_imgs = self.G(self.fixed_feats).detach().cpu()
+            result = vutils.make_grid(fake_imgs, padding=2, normalize=True)
 
-        d_running_loss /= total_iter
-        g_running_loss /= total_iter
-
+        d_running_loss /= len(self.train_loader)
+        g_running_loss /= len(self.train_loader)
         return d_running_loss, g_running_loss, result
 
     def test_model(self):
         with torch.no_grad():
             #self.G.eval()  #FIXME: Why is .eval causing the image to be black/all_zero?
             start_time = time.time()
-            with torch.no_grad():
-                for j in range(40):
-                    feat = self.fixed_feats.clone()
-                    for i in range(feat.size(0)):
-                        if feat[i,j,:,:] == 0:
-                            feat[i,j,:,:] = 1
-                        else:
-                            feat[i,j,:,:] = 0
-                    fake = self.G(feat).detach().cpu()
-                    # Upsampling image.
-                    fake = F.upsample(fake, size_new=(128,128), mode=‘bilinear’)
-                    result = vutils.make_grid(fake, padding=2, normalize=True)
-                    plot_images('9999'+str(j+1), result, self.args.run_id)
+            for j in range(self.label_dim):
+                feat = self.fixed_feats.clone()
+                for i in range(feat.size(0)):
+                    feat[i,j,:,:] ^= 1
+                    # if feat[i,j,:,:] == 0:
+                    #     feat[i,j,:,:] = 1
+                    # else:
+                    #     feat[i,j,:,:] = 0
+                fake = self.G(feat).detach().cpu()
+                fake = F.upsample(fake, size_new=(2*config.image_size,2*config.image_size), mode='bilinear')
+                result = vutils.make_grid(fake, padding=2, normalize=True)
+                plot_images(str(j+1), result, self.args.run_id, mode='test')
             end_time = time.time()
             min_time = (end_time - start_time)//60
             sec_time = (end_time - start_time) - (min_time*60)
             print('Test Completed. Time: %dm%ds' % (min_time,sec_time))
             return result
-
-import matplotlib.pyplot as plt
-def plot_images(epoch, img, run_id):
-    fig = plt.figure(figsize=(10,5))
-    plt.axis("off")
-    plt.title("Fake Image {}".format(epoch))
-    plt.imshow(np.transpose(img,(1,2,0))) # plot the latest epoch
-    plt.savefig(os.path.join(config.result_dir,'{}/images_{}.jpeg'.format(run_id, epoch)), dpi=400, bbox_inches='tight')
-    plt.close(fig)
