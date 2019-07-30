@@ -28,20 +28,19 @@ class Runner(object):
                             out_dim=config.g_out_channels)
         self.D = Discriminator(in_dim=config.d_in_channels, conv_dim=config.d_conv_dim,
                                 label_dim=config.d_cls_dim)
-        if args.reload_model:
-            # Load pre-trained model.
-            if args.model_name is None:
-                raise ValueError('Requested reload_model but get model_name as None.')
-            else:
-                model_path = os.path.join('{}/{}'.format(config.models_dir, args.run_id),
-                                            args.model_name)
-                model_dict = torch.load(model_path, map_location=self.device)
-                self.G.load_state_dict(model_dict['Generator'])
-                self.D.load_state_dict(model_dict['Discriminator'])
-                print('Loaded model:', model_path)
-        else:
+
+        if args.model_name is None:
             self.D.apply(weights_init)
             self.G.apply(weights_init)
+            print('Initialized network weights.')
+        else:
+            # Load pre-trained model.
+            model_path = os.path.join('{}/{}'.format(config.models_dir, args.run_id),
+                                        args.model_name)
+            model_dict = torch.load(model_path, map_location=self.device)
+            self.G.load_state_dict(model_dict['Generator'])
+            self.D.load_state_dict(model_dict['Discriminator'])
+            print('Loaded model:', model_path)
 
         self.D, self.G = self.D.to(self.device), self.G.to(self.device)
         self.train_loader = get_loader(config.image_dir, config.attr_path,
@@ -168,20 +167,22 @@ class Runner(object):
 
     def test_model(self):
         with torch.no_grad():
-            #self.G.eval()  #FIXME: Why is .eval causing the image to be black/all_zero?
+            # self.G.eval()  #FIXME: Why is .eval causing the image to be black/all_zero?
             start_time = time.time()
-            for j in range(self.label_dim):
-                feat = self.fixed_feats.clone()
-                for i in range(feat.size(0)):
-                    feat[i,j,:,:] ^= 1
-                    # if feat[i,j,:,:] == 0:
-                    #     feat[i,j,:,:] = 1
-                    # else:
-                    #     feat[i,j,:,:] = 0
-                fake = self.G(feat).detach().cpu()
-                fake = F.upsample(fake, size_new=(2*config.image_size,2*config.image_size), mode='bilinear')
+            basetitle = "Fake Image"
+            for j in range(self.label_dim+1):
+                feat = (self.fixed_feats.clone()).int()
+                if j: # Skip for first round to save original fake images.
+                    for i in range(feat.size(0)):
+                        feat[i,j-1,:,:] ^= 1
+                fake = self.G(feat.float()).detach().cpu()
+                fake = F.interpolate(fake, size=(2*config.image_size,2*config.image_size), mode='nearest')
                 result = vutils.make_grid(fake, padding=2, normalize=True)
-                plot_images(str(j+1), result, self.args.run_id, mode='test')
+                if j:
+                    title = basetitle + "\nToggled Feature : {}".format(self.test_loader.dataset.idx2attr[j-1])
+                else:
+                    title = basetitle
+                plot_images(title, result, self.args.run_id, j, mode='test')
             end_time = time.time()
             min_time = (end_time - start_time)//60
             sec_time = (end_time - start_time) - (min_time*60)

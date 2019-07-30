@@ -10,10 +10,9 @@ from datetime import datetime
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Training/testing for Face Generation.')
-    parser.add_argument('--reload_model', action='store_true', help='To reload model.')
-    parser.add_argument('--run_id', type=str, required="reload_model" in sys.argv, help='Run ID to load model.')
+    parser.add_argument('--run_id', type=str, required="--model_name" in sys.argv, help='Run ID to load model.')
     parser.add_argument('--mode', type=str, choices=['train', 'test'], default='train', help='\'train\' or \'test\' mode.')
-    parser.add_argument('--model_name', type=str, required="reload_model" in sys.argv, help='Name of model file to be reloaded.')
+    parser.add_argument('--model_name', type=str, default=None, help='Name of model file to be reloaded.')
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -28,6 +27,8 @@ if __name__ == "__main__":
         dt = datetime.now()
         run_id = dt.strftime('%m_%d_%H_%M')
         create_dir(run_id)
+        # dump args to file.
+        dump_run_config(run_id)
         # Start training.
         n_epochs = config.n_epochs
         G_losses = []
@@ -39,7 +40,7 @@ if __name__ == "__main__":
             G_losses.append(g_loss)
             D_losses.append(d_loss)
             plot_loss(G_losses, D_losses, run_id)   # loss image
-            plot_images(epoch+1, result, run_id)    # images
+            plot_images("Fake Image : Epoch {}".format(epoch+1), result, run_id, epoch+1)    # images
             # Checkpoint the model after each epoch.
             d_loss, g_loss= '%.3f'%(d_loss), '%.3f'%(g_loss)
             model_path = os.path.join('{}/{}'.format(config.models_dir, run_id), \
@@ -51,8 +52,6 @@ if __name__ == "__main__":
             print('='*20)
 
     elif args.mode == 'test':
-        # For loading pre-trained model.
         runner = Runner(args=args)
         result = runner.test_model()
-        #plot_images(9999, result, args.run_id)
         print('='*20)
