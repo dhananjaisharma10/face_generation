@@ -24,10 +24,14 @@ class Runner(object):
         super(Runner, self).__init__()
         self.args = args
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.G = Generator(in_dim=config.g_input_dim, conv_dim=config.g_conv_dim,
-                            out_dim=config.g_out_channels)
-        self.D = Discriminator(in_dim=config.d_in_channels, conv_dim=config.d_conv_dim,
-                                label_dim=config.d_cls_dim)
+        self.G = Generator(in_dim=config.g_input_dim, conv_channels=config.g_conv_channels,
+                            out_dim=config.g_out_channels, n_res_block=config.g_num_blocks)
+        self.D = Discriminator(in_dim=config.d_in_channels, conv_channels=config.d_conv_channels,
+                            leaky_slope=config.d_leaky_slope, label_dim=config.d_cls_dim)
+
+        print('Model Architecture:')
+        print(self.G)
+        print(self.D)
 
         if args.model_name is None:
             self.D.apply(weights_init)

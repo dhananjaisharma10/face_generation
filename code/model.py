@@ -1,3 +1,4 @@
+import config
 import torch
 import numpy as np
 import torch.nn as nn
@@ -51,81 +52,57 @@ class Bottleneck(nn.Module):
 
 # Generator Code
 class Generator(nn.Module):
-    def __init__(self, in_dim=40, conv_dim=64, out_dim=3):
+    def __init__(self, in_dim=40, conv_channels=[512, 256, 128, 64],
+                        conv_dim=64, out_dim=3, n_res_block=6):
         super(Generator, self).__init__()
-        self.feat_extractor = nn.Sequential(
-            # Residual Blocks
-            ResidualBlock(in_dim, in_dim),
-            ResidualBlock(in_dim, in_dim),
-            ResidualBlock(in_dim, in_dim),
-            ResidualBlock(in_dim, in_dim),
-            ResidualBlock(in_dim, in_dim),
-            ResidualBlock(in_dim, in_dim),
-            # input is Z, going into a convolution
-            nn.ConvTranspose2d(in_channels=in_dim, out_channels=conv_dim*8,
-                                kernel_size=4, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(conv_dim * 8),
-            nn.ReLU(True),
-            # state size. (conv_dim*8) x 4 x 4
-            nn.ConvTranspose2d(in_channels=conv_dim*8, out_channels=conv_dim*4,
-                                kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(conv_dim * 4),
-            nn.ReLU(True),
-            # state size. (conv_dim*4) x 8 x 8
-            nn.ConvTranspose2d(in_channels=conv_dim*4, out_channels=conv_dim*2,
-                                kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(conv_dim * 2),
-            nn.ReLU(True),
-            # state size. (conv_dim*2) x 16 x 16
-            nn.ConvTranspose2d(in_channels=conv_dim*2, out_channels=conv_dim,
-                                kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(conv_dim),
-            nn.ReLU(True),
-        )
-        # state size. (conv_dim) x 32 x 32
+        layers = []
+        # Residual Blocks
+        for i in range(n_res_block):
+            layers.append(ResidualBlock(in_dim, in_dim))
+        # Up-sampling, for 1x1 input, first convTranspose will output 4x4.
+        # Then each convTranspose will upsample by 2x.
+        in_channels, stride, padding = in_dim, 1, 0
+        for i, out_channels in enumerate(conv_channels):
+            layers.extend([
+                nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels,
+                                    kernel_size=4, stride=stride, padding=padding, bias=False),
+                nn.BatchNorm2d(out_channels),
+                nn.ReLU(True),
+            ])
+            in_channels, stride, padding = out_channels, 2, 1
+        self.feat_extractor = nn.Sequential(*layers)
+        # Final up-sample, by 2x.
         self.img_gen = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=conv_dim, out_channels=out_dim,
+            nn.ConvTranspose2d(in_channels=conv_channels[-1], out_channels=out_dim,
                                 kernel_size=4, stride=2, padding=1, bias=False),
             nn.Tanh()
         )
-        # state size. (out_dim) x 64 x 64
 
     def forward(self, input):
         return self.img_gen(self.feat_extractor(input))
 
 class Discriminator(nn.Module):
-    def __init__(self, in_dim=3, conv_dim=64, label_dim=40):
+    def __init__(self, in_dim=3, conv_channels=[64, 128, 256, 512], leaky_slope=0.2, label_dim=40):
         super(Discriminator, self).__init__()
-        self.feat_extractor = nn.Sequential(
-            # input is (in_dim) x 64 x 64
-            nn.Conv2d(in_channels=in_dim, out_channels=conv_dim,
-                        kernel_size=4, stride=2, padding=1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (conv_dim) x 32 x 32
-            nn.Conv2d(in_channels=conv_dim, out_channels=conv_dim*2,
-                        kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(conv_dim * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (conv_dim*2) x 16 x 16
-            nn.Conv2d(in_channels=conv_dim*2, out_channels=conv_dim*4,
-                        kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(conv_dim*4),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (conv_dim*4) x 8 x 8
-            nn.Conv2d(in_channels=conv_dim*4, out_channels=conv_dim*8,
-                        kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(conv_dim * 8),
-            nn.LeakyReLU(0.2, inplace=True)
-        )
-        # state size. (conv_dim*8) x 4 x 4
+        layers = []
+        # Down-sampling, each conv will downsample by 2x.
+        in_channels = in_dim
+        for i, out_channels in enumerate(conv_channels):
+            layers.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels,
+                                            kernel_size=4, stride=2, padding=1, bias=False))
+            if i: layers.append(nn.BatchNorm2d(out_channels))
+            layers.append(nn.LeakyReLU(leaky_slope, inplace=True))
+            in_channels = out_channels
+        self.feat_extractor = nn.Sequential(*layers)
         # Used to classify whether real/fake (probability)
         self.prob = nn.Sequential(
-            nn.Conv2d(in_channels=conv_dim*8, out_channels=1,
+            nn.Conv2d(in_channels=conv_channels[-1], out_channels=1,
                         kernel_size=4, stride=1, padding=0, bias=False),
             nn.Sigmoid()
             )
         # Used for domain classification.
-        self.domain_cls = nn.Conv2d(conv_dim * 8, label_dim, 4, 1, 0, bias=False)
+        self.domain_cls = nn.Conv2d(in_channels=conv_channels[-1], out_channels=label_dim,
+                            kernel_size=4, stride=1, padding=0, bias=False)
 
     def forward(self, input):
         feat = self.feat_extractor(input)
