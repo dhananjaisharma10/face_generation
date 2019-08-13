@@ -6,7 +6,7 @@
 crop_size = 178
 
 # image_size: input/output image resolution, test output is 2x
-image_size = 256
+image_size = 128
 
 # Establish convention for real and fake probability labels during training
 real_prob = 1
@@ -38,7 +38,7 @@ g_input_dim = 40
 g_num_blocks = 6
 
 # g_conv_channels: list of out channels for conv layers in G
-g_conv_channels = [512, 256, 256, 128, 128, 64]
+g_conv_channels = [512, 256, 128, 64, 64]
 
 # g_out_channels: number of channels in the output image from G
 g_out_channels = 3
@@ -66,7 +66,7 @@ d_wd = 0
 d_lr = 0.0001
 
 # d_conv_channels: list of out channels for conv layers in D
-d_conv_channels = [64, 128, 128, 256, 256, 512]
+d_conv_channels = [64, 64, 128, 256, 512]
 
 # d_leaky_slope: slope of leaky relu
 d_leaky_slope = 0.2
