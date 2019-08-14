@@ -50,11 +50,13 @@ class Runner(object):
         self.train_loader = get_loader(config.image_dir, config.attr_path,
                                         crop_size=config.crop_size, image_size=config.image_size,
                                         batch_size=config.train_batch_size, mode='train',
-                                        num_workers=config.num_workers)
+                                        num_workers=config.num_workers,
+                                        selected_attr=config.selected_attr)
         self.test_loader = get_loader(config.image_dir, config.attr_path,
                                          crop_size=config.crop_size, image_size=config.image_size,
                                          batch_size=config.test_batch_size, mode='test',
-                                         num_workers=config.num_workers)
+                                         num_workers=config.num_workers,
+                                         selected_attr=config.selected_attr)
 
         #WARNING: If we are loading pre trained modals in between epoches to continue training, we should also load the optimiser.
 
@@ -183,7 +185,7 @@ class Runner(object):
                 fake = F.interpolate(fake, size=(2*config.image_size,2*config.image_size), mode='nearest')
                 result = vutils.make_grid(fake, padding=2, normalize=True)
                 if j:
-                    title = basetitle + "\nToggled Feature : {}".format(self.test_loader.dataset.idx2attr[j-1])
+                    title = basetitle + "\nToggled Feature : {}".format(self.test_loader.dataset.selected_attr[j-1])
                 else:
                     title = basetitle
                 plot_images(title, result, self.args.run_id, j, mode='test')

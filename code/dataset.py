@@ -10,11 +10,12 @@ from torchvision.datasets import ImageFolder
 class CelebA(data.Dataset):
     """Dataset class for the CelebA dataset."""
 
-    def __init__(self, image_dir, attr_path, transform, mode):
+    def __init__(self, image_dir, attr_path, transform, mode, selected_attr=None):
         """Initialize and preprocess the CelebA dataset."""
         self.image_dir = image_dir
         self.attr_path = attr_path
         self.transform = transform
+        self.selected_attr = selected_attr
         self.mode = mode
         self.train_dataset = []
         self.test_dataset = []
@@ -37,13 +38,17 @@ class CelebA(data.Dataset):
             self.attr2idx[attr_name] = i
             self.idx2attr[i] = attr_name
         lines = lines[2:]
+        if self.selected_attr is None:
+            selected_attr_names = all_attr_names
+        else:
+            selected_attr_names = self.selected_attr
         #random.shuffle(lines)
         for i, line in enumerate(lines):
             split = line.split()
             filename = split[0]
             values = split[1:]
             label = []
-            for attr_name in all_attr_names:
+            for attr_name in selected_attr_names:
                 idx = self.attr2idx[attr_name]
                 label.append(values[idx] == '1')
             if (i+1) < 2000:
@@ -73,7 +78,7 @@ class CelebA(data.Dataset):
         return self.num_images
 
 def get_loader(image_dir, attr_path, crop_size=178, image_size=64,
-               batch_size=16, mode='train', num_workers=1):
+               batch_size=16, mode='train', num_workers=1, selected_attr=None):
     """Build and return a data loader."""
     transform = []
     if mode == 'train':
@@ -83,7 +88,7 @@ def get_loader(image_dir, attr_path, crop_size=178, image_size=64,
     transform.append(T.ToTensor())
     transform.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
     transform = T.Compose(transform)
-    dataset = CelebA(image_dir, attr_path,  transform, mode)
+    dataset = CelebA(image_dir, attr_path,  transform, mode, selected_attr=selected_attr)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batch_size,
                                   shuffle=(mode=='train' or mode=='all'),
