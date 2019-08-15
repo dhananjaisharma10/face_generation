@@ -66,6 +66,12 @@ class Runner(object):
         self.result_dir = config.result_dir
         self.label_dim = config.g_input_dim
         self.adv_loss = nn.BCELoss()
+        self.g_skip_cls = config.g_skip_cls
+        self.g_skip_all = config.g_skip_all
+        self.g_l1_weights = config.g_l1_weights
+        self.g_l1_w_idx = 0
+        self.cur_iter_count = 0
+        self.d_opti_step_pending = True
 
         # A batch of test images
         _, self.fixed_feats = next(iter(self.test_loader))
@@ -84,12 +90,47 @@ class Runner(object):
     def train_model(self):
         self.D.train()
         self.G.train()
+
         # Progress tracking parameters.
-        d_running_loss = 0      # Discriminator running loss.
-        g_running_loss = 0      # Generator running loss.
+        d_run_cls_loss_r = 0      # D running cls loss for real.
+        d_run_adv_loss_r = 0      # D running adv loss for real.
+        d_run_cls_loss_f = 0      # D running cls loss for fake.
+        d_run_adv_loss_f = 0      # D running adv loss for fake.
+        d_running_loss = 0        # Discriminator running loss.
+
+        g_run_cls_loss_f = 0      # D running cls loss for fake.
+        g_run_adv_loss_f = 0      # D running adv loss for fake.
+        g_run_l1_loss_f = 0       # D running L1 loss for fake.
+        g_running_loss = 0        # Generator running loss.
+
         running_p_real = 0      # Accumulated predicted probability of real batch.
         running_p_fake = 0      # Accumulated predicted probability of fake batch.
         running_p_fake_2 = 0    # Accumulated predicted probability of fake batch after one D update.
+
+        total_itr = len(self.train_loader)
+        iter_str_len = 2*len(str(total_itr)) + 3
+        line = "|| {:>{iter_str_len}} | {:>8} | {:>8} | {:>8} | {:>8} | {:>8} | "\
+              "{:>8} | {:>8} | {:>8} | {:>8} | {:>8} | {:>8} | "\
+              "{:>13} ||".format("Iter", "D_cls_r", "D_adv_r", "D_cls_f",\
+               "D_adv_f", "D_loss", "G_cls_f", "G_adv_f", "G_l1_f",\
+               "G_loss", "D(x)", "D(G(z))", "Post-D(G(z))", iter_str_len=iter_str_len)
+        total_line_len = len(line)
+        print('='*total_line_len)
+        print(line)
+        print('='*total_line_len)
+
+        g_l1_w = 1.0
+        # find weight for L1 loss in G
+        if self.cur_iter_count > self.g_skip_all:
+            g_l1_w = self.g_l1_weights[self.g_l1_w_idx]
+            if self.g_l1_w_idx < len(self.g_l1_weights)-1:
+                self.g_l1_w_idx += 1
+
+            if self.d_opti_step_pending:
+                self.d_opti_step_pending = False
+                new_lr = config.d_lr*0.1
+                for param_group in self.d_optimizer.param_groups:
+                    param_group['lr'] = new_lr
 
         start_time = time.time()
         for itr, (imgs, labels) in enumerate(self.train_loader, 0):
@@ -108,55 +149,92 @@ class Runner(object):
             pred_prob, pred_cls = self.D(imgs)                                                  # Forward pass real batch through D.
             d_adv_loss = self.adv_loss(pred_prob, gt_prob)                                      # Adversarial loss.
             d_cls_loss = self.cls_loss(pred_cls, labels.view(labels.size(0), labels.size(1)))   # Classification loss.
-            d_loss = d_adv_loss + d_cls_loss
-            d_loss.backward()                           # Calculate gradients for D.
-            running_p_real += pred_prob.mean().item()   # Accumulate predicted probability for real batch.
-            d_running_loss += d_loss.item()             # Accumulate loss for D.
+            d_loss = d_cls_loss
+            # only kick in adversarial loss when G trains.
+            if  self.cur_iter_count > self.g_skip_all:
+                d_loss += d_adv_loss
+                d_run_adv_loss_r += d_adv_loss.item()
+                running_p_real += pred_prob.mean().item()       # Accumulate predicted probability for real batch.
+            d_loss.backward()                                   # Calculate gradients for D.
+            # Accumulate losses for D.
+            d_running_loss += d_loss.item()
+            d_run_cls_loss_r += d_cls_loss.item()
 
-            # Train with all-fake batch
-            gt_prob.fill_(config.fake_prob)                                                     # Ground truth probabilities.
-            pred_prob, pred_cls = self.D(fake_imgs.detach())                                    # Forward pass fake batch through D.
-            d_adv_loss = self.adv_loss(pred_prob, gt_prob)                                      # Adversarial loss.
-            d_cls_loss = self.cls_loss(pred_cls, labels.view(labels.size(0), labels.size(1)))   # Classification loss.
-            d_loss = d_adv_loss + d_cls_loss
-            d_loss.backward()                           # Calculate gradients for D.
-            running_p_fake += pred_prob.mean().item()   # Accumulate predicted probability for real batch.
-            d_running_loss += d_loss.item()             # Accumulate loss for D.
+
+            # only kick in adversarial loss when G trains.
+            if  self.cur_iter_count > self.g_skip_all:
+                # Train with all-fake batch
+                gt_prob.fill_(config.fake_prob)                                                     # Ground truth probabilities.
+                pred_prob, pred_cls = self.D(fake_imgs.detach())                                    # Forward pass fake batch through D.
+                d_adv_loss = self.adv_loss(pred_prob, gt_prob)                                      # Adversarial loss.
+                d_cls_loss = self.cls_loss(pred_cls, labels.view(labels.size(0), labels.size(1)))   # Classification loss.
+                d_loss = d_adv_loss
+                if self.cur_iter_count > self.g_skip_cls:
+                    d_loss += d_cls_loss
+                    d_run_cls_loss_f += d_cls_loss.item()   # Accumulate losses for D.
+                d_loss.backward()                           # Calculate gradients for D.
+                running_p_fake += pred_prob.mean().item()   # Accumulate predicted probability for real batch.
+                # Accumulate losses for D.
+                d_running_loss += d_loss.item()
+                d_run_adv_loss_f += d_adv_loss.item()
 
             # Update D
             self.d_optimizer.step()
 
-            ############################
-            # (2) Update G network: maximize log(D(G(z)))
-            ############################
-            self.G.zero_grad()
+            if  self.cur_iter_count > self.g_skip_all:
+                ############################
+                # (2) Update G network: maximize log(D(G(z)))
+                ############################
+                self.G.zero_grad()
 
-            # For generator loss, we want discriminator to ideally classify
-            # fake image as real. So ground truth label will be same as real label.
-            gt_prob.fill_(config.real_prob)                                                     # Ground truth probabilities.
-            pred_prob, pred_cls = self.D(fake_imgs)                                             # Forward pass fake batch through D.
-            g_adv_loss = self.adv_loss(pred_prob, gt_prob)                                      # Adversarial loss.
-            g_cls_loss = self.cls_loss(pred_cls, labels.view(labels.size(0), labels.size(1)))   # Classification loss.
-            g_l1_loss = torch.mean(torch.abs(imgs - fake_imgs))                                 # L1 loss for fake image.
-            g_loss = g_adv_loss + g_cls_loss + g_l1_loss
-            g_loss.backward()                           # Calculate gradients for G.
-            running_p_fake_2 += pred_prob.mean().item() # Accumulate predicted probability for real batch.
-            g_running_loss += g_loss.item()             # Accumulate loss for G.
+                # For generator loss, we want discriminator to ideally classify
+                # fake image as real. So ground truth label will be same as real label.
+                gt_prob.fill_(config.real_prob)                                                     # Ground truth probabilities.
+                pred_prob, pred_cls = self.D(fake_imgs)                                             # Forward pass fake batch through D.
+                g_adv_loss = self.adv_loss(pred_prob, gt_prob)                                      # Adversarial loss.
+                g_cls_loss = self.cls_loss(pred_cls, labels.view(labels.size(0), labels.size(1)))   # Classification loss.
+                g_l1_loss = torch.mean(torch.abs(imgs - fake_imgs))                                 # L1 loss for fake image.
+                g_loss = g_adv_loss + g_l1_w*g_l1_loss
+                if self.cur_iter_count > self.g_skip_cls:
+                    g_loss += g_cls_loss
+                    g_run_cls_loss_f += g_cls_loss.item()   # Accumulate losses for G.
+                g_loss.backward()                           # Calculate gradients for G.
+                running_p_fake_2 += pred_prob.mean().item() # Accumulate predicted probability for real batch.
+                # Accumulate losses for G.
+                g_running_loss += g_loss.item()
+                g_run_adv_loss_f += g_adv_loss.item()
+                g_run_l1_loss_f += g_l1_loss.item()
 
-            # Update G
-            self.g_optimizer.step()
+                # Update G
+                self.g_optimizer.step()
+                # Cleanup
+                del g_adv_loss, g_cls_loss, g_l1_loss, g_loss
 
             # Cleanup
             torch.cuda.empty_cache()
-            del labels, imgs, g_loss, d_loss, pred_prob, pred_cls
-            del g_adv_loss, g_cls_loss, g_l1_loss, d_adv_loss, d_cls_loss
+            del labels, imgs, d_loss, pred_prob, pred_cls, d_adv_loss, d_cls_loss
 
-            print("Iter: {}/{} | D-Loss: {:.4f} | G-Loss: {:.4f}".format(\
-                    itr, len(self.train_loader),(d_running_loss/(itr+1)), (g_running_loss/(itr+1))) + \
-                    " | D(x): {:.4f} | D(G(z)): {:.4f} | Post-D(G(z)): {:.4f}".format(\
-                    (running_p_real/(itr+1)), (running_p_fake/(itr+1)), (running_p_fake_2/(itr+1))),
+            niter = itr + 1
+            itr_str = "{}/{}".format(niter, len(self.train_loader))
+            print("|| {:>{iter_str_len}} | {:>8.4f} | {:>8.4f} | {:>8.4f} | {:>8.4f} | {:>8.4f} | "
+                 "{:>8.4f} | {:>8.4f} | {:>8.4f} | {:>8.4f} | {:>8.4f} | {:>8.4f} | "
+                 "{:>13.4f} ||".format(itr_str, (d_run_cls_loss_r/niter),\
+                    (d_run_adv_loss_r/niter), (d_run_cls_loss_f/niter),\
+                    (d_run_adv_loss_f/niter), (d_running_loss/niter),\
+                    (g_run_cls_loss_f/niter), (g_run_adv_loss_f/niter),\
+                    (g_run_l1_loss_f/niter), (g_running_loss/niter),\
+                    (running_p_real/niter), (running_p_fake/niter),\
+                    (running_p_fake_2/niter), iter_str_len=iter_str_len),\
                     end="\r", flush=True)
 
+            # print("Iter: {}/{} | D-Loss: {:.4f} | G-Loss: {:.4f}".format(\
+            #         itr, len(self.train_loader),(d_running_loss/(itr+1)), (g_running_loss/(itr+1))) + \
+            #         " | D(x): {:.4f} | D(G(z)): {:.4f} | Post-D(G(z)): {:.4f}".format(\
+            #         (running_p_real/(itr+1)), (running_p_fake/(itr+1)), (running_p_fake_2/(itr+1))),
+            #         end="\r", flush=True)
+            self.cur_iter_count += batch_size
+
+        print("\n" + "="*total_line_len)
         end_time = time.time()
         min_time = (end_time - start_time) // 60
         sec_time = (end_time - start_time) - (min_time*60)

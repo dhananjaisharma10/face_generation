@@ -22,15 +22,13 @@ test_batch_size = 64
 num_workers = 4
 
 # n_epochs: number of training epochs
-n_epochs = 50
+n_epochs = 80
 
 # random_seed: to give consistent results
 random_seed = 1111
 
 # selected_attr: list of selected attributes to train. Set to None for all attr.
-selected_attr = ['Bald', 'Receding_Hairline', 'Bangs', 'Black_Hair',
-                 'Blond_Hair', 'Eyeglasses', 'Male', 'Mouth_Slightly_Open',
-                 'Smiling', 'No_Beard']
+selected_attr = None
 
 ############################
 # Generator Settings
@@ -54,6 +52,15 @@ g_wd = 0
 # g_lr: learning rate for G
 g_lr = 0.0001
 
+# g_l1_weights: weights for L1 Loss.
+g_l1_weights = [1.0, 0.9, 0.8 ,0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+
+# g_skip_all: number of image samples for which to skip G training
+g_skip_all = 200600*35
+
+# g_skip_cls: number of image samples for which to skip G cls loss
+g_skip_cls = 200600*50
+
 ############################
 # Discriminator Settings
 ############################
@@ -68,7 +75,7 @@ d_in_channels = g_out_channels
 d_wd = 0
 
 # d_lr: learning rate for D
-d_lr = 0.0001
+d_lr = 0.001
 
 # d_conv_channels: list of out channels for conv layers in D
 d_conv_channels = [64, 128, 256, 512]
@@ -76,9 +83,8 @@ d_conv_channels = [64, 128, 256, 512]
 # d_leaky_slope: slope of leaky relu
 d_leaky_slope = 0.2
 
-# TODO
 # d_update_ratio: number of D updates per each G update
-d_update_ratio = 5
+d_update_ratio = 1
 
 ############################
 # Directory Settings
